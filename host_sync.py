@@ -4,9 +4,9 @@ import depthai as dai
 
 class HostSync:
     def __init__(self, device: dai.Device, *queues: str, print_add=False):
+        self.device = device
         self._data = {}
         self._seqs = collections.deque()
-        self._device = device
         self._queues = [(q, device.getOutputQueue(q)) for q in queues]
         self._queue_names = queues
         self._n_queues = len(queues)

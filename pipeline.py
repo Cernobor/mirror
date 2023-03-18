@@ -28,16 +28,24 @@ def create_pipeline():
     # Stereo
     stereo = pipeline.create(dai.node.StereoDepth)
     stereo.initialConfig.setConfidenceThreshold(245)
-    stereo.initialConfig.setMedianFilter(dai.StereoDepthConfig.MedianFilter.KERNEL_5x5)
+    stereo.initialConfig.setMedianFilter(dai.StereoDepthConfig.MedianFilter.KERNEL_7x7)
     stereo.setLeftRightCheck(True)
     stereo.setSubpixel(False)
     stereo.setDepthAlign(dai.CameraBoardSocket.RGB)
+
+    # Depth crop
+    depthCrop = pipeline.create(dai.node.ImageManip)
+    depthCrop.setMaxOutputFrameSize(10497600)
+    depthCrop.initialConfig.setCropRect(420/1920, 0, (1080+420)/1920, 1)
 
     ## IO
 
     # Color out
     colorXout = pipeline.create(dai.node.XLinkOut)
     colorXout.setStreamName('color')
+    # Stereo config out
+    stereoCfgXout = pipeline.create(dai.node.XLinkOut)
+    stereoCfgXout.setStreamName('stereo_cfg')
     # Depth out
     depthXout = pipeline.create(dai.node.XLinkOut)
     depthXout.setStreamName('depth')
@@ -49,7 +57,11 @@ def create_pipeline():
     monoRight.out.link(stereo.right)
     # Color -> color out
     color.video.link(colorXout.input)
-    # Stereo depth -> depth out
-    stereo.depth.link(depthXout.input)
+    # Stereo config -> stereo config out
+    stereo.outConfig.link(stereoCfgXout.input)
+    # Stereo depth -> depth crop
+    stereo.depth.link(depthCrop.inputImage)
+    # Depth crop -> depth out
+    depthCrop.out.link(depthXout.input)
 
     return pipeline
