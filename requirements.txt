@@ -1,0 +1,5 @@
+opencv-python
+depthai
+numpy
+blobconverter
+git+https://github.com/pvigier/perlin-numpy@5e26837#egg=perlin-numpy
