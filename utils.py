@@ -25,3 +25,8 @@ def depth_to_cv_frame(image: dai.ImgFrame, cfg: dai.StereoDepthConfig) -> np.nda
     frame = (frame * 255. / disparity_integer_levels).astype(np.uint8)
     frame = cv2.applyColorMap(frame, cv2.COLORMAP_HOT)
     return frame
+
+def process_detection(img: dai.ImgFrame, det: dai.ImgDetection) -> dai.Rect:
+    rect = dai.Rect(dai.Point2f(det.xmin, det.ymin), dai.Point2f(det.xmax, det.ymax))
+    rect = rect.denormalize(img.getWidth(), img.getHeight())
+    return dai.Rect(dai.Point2f(img.getWidth() - rect.bottomRight().x, rect.topLeft().y), dai.Point2f(img.getWidth() - rect.topLeft().x, rect.bottomRight().y))

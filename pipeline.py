@@ -1,4 +1,5 @@
 import depthai as dai
+import blobconverter
 
 def create_pipeline():
     pipeline = dai.Pipeline()
@@ -43,6 +44,16 @@ def create_pipeline():
     depthCrop.setMaxOutputFrameSize(2332800)
     depthCrop.initialConfig.setCropRect(420/1920, 0, (1080+420)/1920, 1)
 
+    # Face detection NN
+    faceDetNN = pipeline.create(dai.node.MobileNetDetectionNetwork)
+    faceDetNN.setConfidenceThreshold(0.5)
+    faceDetNN.setBlobPath(blobconverter.from_zoo(
+        name='face-detection-retail-0004',
+        shaves=6,
+    ))
+    faceDetNN.input.setBlocking(False)
+    faceDetNN.input.setQueueSize(1)
+
     ## IO
 
     # Color out
@@ -54,9 +65,14 @@ def create_pipeline():
     # Depth out
     depthXout = pipeline.create(dai.node.XLinkOut)
     depthXout.setStreamName('depth')
+    # Fece detection out
+    facesXout = pipeline.create(dai.node.XLinkOut)
+    facesXout.setStreamName('faces')
 
     ## Linking
 
+    # Color preview -> face detection
+    color.preview.link(faceDetNN.input)
     # Mono left/right -> stereo
     monoLeft.out.link(stereo.left)
     monoRight.out.link(stereo.right)
@@ -70,5 +86,7 @@ def create_pipeline():
     stereo.depth.link(depthCrop.inputImage)
     # Depth crop -> depth out
     depthCrop.out.link(depthXout.input)
+    # Face detection -> face detection out
+    faceDetNN.out.link(facesXout.input)
 
     return pipeline

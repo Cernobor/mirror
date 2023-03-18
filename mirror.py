@@ -14,7 +14,7 @@ def main():
 
 
 def run(device: dai.Device):
-    sync = host_sync.HostSync(device, 'color', 'depth')
+    sync = host_sync.HostSync(device, 'color', 'depth', 'faces')
     while loop(sync):
         pass
 
@@ -29,8 +29,14 @@ def loop(sync: host_sync.HostSync) -> bool:
     color_in: dai.ImgFrame = msgs.get('color', None)
     depth_in: dai.ImgFrame = msgs.get('depth', None)
     stereo_cfg_in: dai.StereoDepthConfig = sync.device.getOutputQueue('stereo_cfg').get()
+    faces_in: dai.ImgDetections = msgs.get('faces', None)
 
     color = color_in.getCvFrame()
+
+    for det in faces_in.detections:
+        rect = utils.process_detection(color_in, det)
+        color = cv2.rectangle(color, [int(rect.topLeft().x), int(rect.topLeft().y)], [int(rect.bottomRight().x), int(rect.bottomRight().y)], (255, 255, 255), 5)
+    
     color_resized = cv2.resize(color, DISPLAY_SIZE)
     cv2.imshow('Color', color_resized)
 
