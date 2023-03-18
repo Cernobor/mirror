@@ -13,6 +13,11 @@ def create_pipeline():
     color.setInterleaved(False)
     color.setFps(25)
 
+    # Color flip
+    colorFlip = pipeline.create(dai.node.ImageManip)
+    colorFlip.setMaxOutputFrameSize(1749600)
+    colorFlip.initialConfig.setHorizontalFlip(True)
+
     # Mono left
     monoLeft = pipeline.create(dai.node.MonoCamera)
     monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
@@ -35,7 +40,7 @@ def create_pipeline():
 
     # Depth crop
     depthCrop = pipeline.create(dai.node.ImageManip)
-    depthCrop.setMaxOutputFrameSize(10497600)
+    depthCrop.setMaxOutputFrameSize(2332800)
     depthCrop.initialConfig.setCropRect(420/1920, 0, (1080+420)/1920, 1)
 
     ## IO
@@ -55,8 +60,10 @@ def create_pipeline():
     # Mono left/right -> stereo
     monoLeft.out.link(stereo.left)
     monoRight.out.link(stereo.right)
-    # Color -> color out
-    color.video.link(colorXout.input)
+    # Color -> color flip
+    color.video.link(colorFlip.inputImage)
+    # Color flip -> color out
+    colorFlip.out.link(colorXout.input)
     # Stereo config -> stereo config out
     stereo.outConfig.link(stereoCfgXout.input)
     # Stereo depth -> depth crop
