@@ -1,7 +1,7 @@
 import depthai as dai
 import blobconverter
 
-def create_pipeline():
+def create_pipeline(transport_depth=False):
     pipeline = dai.Pipeline()
 
     ## Nodes
@@ -63,8 +63,9 @@ def create_pipeline():
     stereoCfgXout = pipeline.create(dai.node.XLinkOut)
     stereoCfgXout.setStreamName('stereo_cfg')
     # Depth out
-    depthXout = pipeline.create(dai.node.XLinkOut)
-    depthXout.setStreamName('depth')
+    if transport_depth:
+        depthXout = pipeline.create(dai.node.XLinkOut)
+        depthXout.setStreamName('depth')
     # Fece detection out
     facesXout = pipeline.create(dai.node.XLinkOut)
     facesXout.setStreamName('faces')
@@ -85,7 +86,8 @@ def create_pipeline():
     # Stereo depth -> depth crop
     stereo.depth.link(depthCrop.inputImage)
     # Depth crop -> depth out
-    depthCrop.out.link(depthXout.input)
+    if transport_depth:
+        depthCrop.out.link(depthXout.input)
     # Face detection -> face detection out
     faceDetNN.out.link(facesXout.input)
 
