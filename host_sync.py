@@ -7,7 +7,7 @@ class HostSync:
         self.device = device
         self._data = {}
         self._seqs = collections.deque()
-        self._queues = [(q, device.getOutputQueue(q)) for q in queues]
+        self._queues = [(q, device.getOutputQueue(q, maxSize=1, blocking=False)) for q in queues]
         self._queue_names = queues
         self._n_queues = len(queues)
         self._last_sync_seq = -float('inf')
@@ -38,19 +38,14 @@ class HostSync:
     def _get_last_msg(self):
         seq = None
         res = None
-        drop = None
-        found = False
         for i, s in enumerate(self._seqs):
             d = self._data.get(s, None)
             if d is not None and len(d) == self._n_queues:
                 seq = s
                 res = d
-                found = True
-            elif found:
-                drop = i
                 break
-        if drop is not None:
-            for _ in range(drop):
+        if seq is not None:
+            while self._seqs and self._seqs[0] <= seq:
                 self._data.pop(self._seqs.popleft())
         if seq is not None:
             self._last_sync_seq = seq

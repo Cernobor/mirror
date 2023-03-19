@@ -3,11 +3,12 @@ import depthai as dai
 import host_sync
 import cv2
 import utils
+import time
 
 DISPLAY_SIZE = (500, 500)
 
 def main():
-    show_depth = True
+    show_depth = False
     print('Initializing device...')
     with dai.Device(pipeline.create_pipeline(show_depth)) as device:
         print('Device initialized.')
@@ -15,12 +16,16 @@ def main():
 
 
 def run(device: dai.Device, show_depth: bool):
-    queues = ['color', 'faces']
+    queues = [
+        'color',
+        'faces',
+        'spatial'
+    ]
     if show_depth:
         queues.append('depth')
-    sync = host_sync.HostSync(device, *queues)
+    sync = host_sync.HostSync(device, *queues, print_add=True)
     while loop(sync, show_depth):
-        pass
+        time.sleep(0.001)
 
 
 def loop(sync: host_sync.HostSync, show_depth: bool) -> bool:
@@ -28,16 +33,24 @@ def loop(sync: host_sync.HostSync, show_depth: bool) -> bool:
     if msgs is None:
         return True
     
-    print('Lag', sync.get_lag())
+    print('Seq', seq, 'lag', sync.get_lag())
 
     color_in: dai.ImgFrame = msgs.get('color', None)
     faces_in: dai.ImgDetections = msgs.get('faces', None)
+    spatial_in: dai.SpatialLocationCalculatorData = msgs.get('spatial', None)
+    #print(seq, color_in, faces_in, spatial_in)
 
     color = color_in.getCvFrame()
 
-    for det in faces_in.detections:
+    for i, det in enumerate(faces_in.detections):
         rect = utils.process_detection(color_in, det)
-        color = cv2.rectangle(color, [int(rect.topLeft().x), int(rect.topLeft().y)], [int(rect.bottomRight().x), int(rect.bottomRight().y)], (255, 255, 255), 5)
+        x0 = int(rect.topLeft().x)
+        y0 = int(rect.topLeft().y)
+        x1 = int(rect.bottomRight().x)
+        y1 = int(rect.bottomRight().y)
+        color = cv2.rectangle(color, (x0, y0), (x1, y1), (255, 255, 255), 5)
+        location = spatial_in.getSpatialLocations()[i]
+        color = cv2.putText(color, f'{location.depthAverage:.01f}', (x0, y0), 0, 2, (255, 255, 255), 3)
     
     color_resized = cv2.resize(color, DISPLAY_SIZE)
     cv2.imshow('Color', color_resized)
