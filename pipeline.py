@@ -19,6 +19,8 @@ def create_pipeline(transport_depth=False):
     colorFlip = pipeline.create(dai.node.ImageManip)
     colorFlip.setMaxOutputFrameSize(1749600)
     colorFlip.initialConfig.setHorizontalFlip(True)
+    colorFlip.inputImage.setBlocking(False)
+    colorFlip.inputImage.setQueueSize(1)
 
     # Mono left
     monoLeft = pipeline.create(dai.node.MonoCamera)
@@ -65,6 +67,8 @@ def create_pipeline(transport_depth=False):
     detectionsDepthToSpatial.setScript(load_script('device_scripts/detections_depth_to_spatial.py'))
     detectionsDepthToSpatial.inputs['depth'].setBlocking(False)
     detectionsDepthToSpatial.inputs['depth'].setQueueSize(1)
+    detectionsDepthToSpatial.inputs['faces'].setBlocking(False)
+    detectionsDepthToSpatial.inputs['faces'].setQueueSize(1)
 
     # Spatial locator
     spatial = pipeline.create(dai.node.SpatialLocationCalculator)
@@ -123,6 +127,8 @@ def create_pipeline(transport_depth=False):
         depthCrop.out.link(depthXout.input)
     # Face detection -> face detection out
     faceDetNN.out.link(facesXout.input)
+    # Face detection -> detections-depth to spatial
+    faceDetNN.out.link(detectionsDepthToSpatial.inputs['faces'])
     # Detections-depth to spatial cfg/depth -> spatial locator cfg/depth
     detectionsDepthToSpatial.outputs['depth_cfg'].link(spatial.inputConfig)
     detectionsDepthToSpatial.outputs['depth_img'].link(spatial.inputDepth)

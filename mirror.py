@@ -16,6 +16,8 @@ def main():
 
 
 def run(device: dai.Device, show_depth: bool):
+    device.setLogLevel(dai.LogLevel.INFO)
+    device.setLogOutputLevel(dai.LogLevel.INFO)
     queues = [
         'color',
         'faces',
@@ -23,7 +25,7 @@ def run(device: dai.Device, show_depth: bool):
     ]
     if show_depth:
         queues.append('depth')
-    sync = host_sync.HostSync(device, *queues, print_add=True)
+    sync = host_sync.HostSync(device, *queues, print_add=False)
     while loop(sync, show_depth):
         time.sleep(0.001)
 
@@ -49,8 +51,9 @@ def loop(sync: host_sync.HostSync, show_depth: bool) -> bool:
         x1 = int(rect.bottomRight().x)
         y1 = int(rect.bottomRight().y)
         color = cv2.rectangle(color, (x0, y0), (x1, y1), (255, 255, 255), 5)
-        location = spatial_in.getSpatialLocations()[i]
-        color = cv2.putText(color, f'{location.depthAverage:.01f}', (x0, y0), 0, 2, (255, 255, 255), 3)
+        if i < len(spatial_in.getSpatialLocations()):
+            location = spatial_in.getSpatialLocations()[i]
+            color = cv2.putText(color, f'{location.depthAverage:.01f}', (x0, y0), 0, 2, (255, 255, 255), 3)
     
     color_resized = cv2.resize(color, DISPLAY_SIZE)
     cv2.imshow('Color', color_resized)
