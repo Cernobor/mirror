@@ -48,6 +48,7 @@ def create_pipeline(transport_depth=False):
     depthCrop = pipeline.create(dai.node.ImageManip)
     depthCrop.setMaxOutputFrameSize(2332800)
     depthCrop.initialConfig.setCropRect(420/1920, 0, (1080+420)/1920, 1)
+    depthCrop.initialConfig.setResize(1080 // 3, 1080 // 3)
     depthCrop.inputImage.setBlocking(False)
     depthCrop.inputImage.setQueueSize(1)
 
@@ -119,7 +120,6 @@ def create_pipeline(transport_depth=False):
     stereo.depth.link(depthCrop.inputImage)
     # Depth crop -> detections-depth to spatial
     depthCrop.out.link(detectionsDepthToSpatial.inputs['depth'])
-    depthCrop.out.link(spatial.inputDepth)
     if transport_depth:
         # Stereo config -> stereo config out
         stereo.outConfig.link(stereoCfgXout.input)

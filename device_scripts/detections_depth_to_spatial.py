@@ -15,6 +15,7 @@ node = Node()
 import time  # noqa
 
 BUFFER_SIZE = 10
+NEIGHBOURHOOD = 3
 
 class RB:
     def __init__(self, size) -> None:
@@ -102,15 +103,15 @@ while True:
                          int((rect.topLeft().y + rect.bottomRight().y) / 2))
         
         roi = SpatialLocationCalculatorConfigData()
-        roi.roi = Rect(Point2f(center.x - 5, center.y - 5),
-                       Point2f(center.x + 5, center.y + 5))
+        roi.roi = Rect(Point2f(center.x - NEIGHBOURHOOD, center.y - NEIGHBOURHOOD),
+                       Point2f(center.x + NEIGHBOURHOOD, center.y + NEIGHBOURHOOD))
         roi.calculationAlgorithm = SpatialLocationCalculatorAlgorithm.AVERAGE
         rois.append(roi)
     # Dummy ROI in case there were no detections
     if len(rois) == 0:
         roi = SpatialLocationCalculatorConfigData()
-        roi.roi = Rect(Point2f(depth.getWidth() // 2 - 5, depth.getHeight() // 2 - 5),
-                    Point2f(depth.getWidth() // 2 + 5, depth.getHeight() // 2 + 5))
+        roi.roi = Rect(Point2f(depth.getWidth() // 2 - NEIGHBOURHOOD, depth.getHeight() // 2 - NEIGHBOURHOOD),
+                       Point2f(depth.getWidth() // 2 + NEIGHBOURHOOD, depth.getHeight() // 2 + NEIGHBOURHOOD))
         roi.calculationAlgorithm = SpatialLocationCalculatorAlgorithm.AVERAGE
         rois.append(roi)
     cfg = SpatialLocationCalculatorConfig()
