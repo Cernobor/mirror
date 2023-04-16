@@ -6,9 +6,9 @@ import pipeline
 import depthai as dai
 import host_sync
 import cv2
+from processing import BBox, Processor
 import utils
 import time
-import struct
 
 DISPLAY_SIZE: tuple[int, int] = (500, 500)
 
@@ -37,6 +37,7 @@ def run(device: dai.Device, show_depth: bool):
     if show_depth:
         queues.append('depth')
     sync = host_sync.HostSync(device, *queues, print_add=False)
+    processor = Processor()
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
     while True:
@@ -53,22 +54,21 @@ def run(device: dai.Device, show_depth: bool):
         latency = (dai.Clock.now() - color_in.getTimestamp()).total_seconds() * 1000
         latency_buffer[latency_buffer_idx] = latency
         latency_buffer_idx = (latency_buffer_idx + 1) % latency_buffer.size
-        print('Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(latency, np.average(latency_buffer), np.std(latency_buffer)))
+        #print('Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(latency, np.average(latency_buffer), np.std(latency_buffer)))
 
         color = typing.cast(cv2.Mat, color_in.getCvFrame())
 
         bbox_raw = nearest_face_in.getLayerFp16('bbox')
+        bbox = None
         if bbox_raw is not None and len(bbox_raw) == 4:
             rect = dai.Rect(dai.Point2f(1 - bbox_raw[2], bbox_raw[1]),
                             dai.Point2f(1 - bbox_raw[0], bbox_raw[3]))
             rect = rect.denormalize(color_in.getWidth(), color_in.getHeight())
-            xmin = int(rect.topLeft().x)
-            ymin = int(rect.topLeft().y)
-            xmax = int(rect.bottomRight().x)
-            ymax = int(rect.bottomRight().y)
-            bbox_top_left = (xmin, ymin)
-            bbox_bottom_right = (xmax, ymax)
-            color = cv2.rectangle(color, bbox_top_left, bbox_bottom_right, (255, 255, 255), 5)
+            bbox = BBox(int(rect.topLeft().x),
+                        int(rect.topLeft().y),
+                        int(rect.bottomRight().x),
+                        int(rect.bottomRight().y))
+        color = processor.process(color, bbox, seq)
         
         color_resized = cv2.resize(color, DISPLAY_SIZE)
         cv2.imshow('Color', color_resized)
