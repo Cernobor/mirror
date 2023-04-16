@@ -4,6 +4,7 @@ import blobconverter
 
 def create_pipeline(transport_depth: bool=False) -> dai.Pipeline:
     pipeline = dai.Pipeline()
+    fps = 20
 
     # Nodes
 
@@ -13,7 +14,7 @@ def create_pipeline(transport_depth: bool=False) -> dai.Pipeline:
     color.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
     color.setVideoSize(1080, 1080)
     color.setInterleaved(False)
-    color.setFps(25)
+    color.setFps(fps)
 
     # Color flip
     colorFlip = pipeline.create(dai.node.ImageManip)
@@ -26,14 +27,14 @@ def create_pipeline(transport_depth: bool=False) -> dai.Pipeline:
     monoLeft = pipeline.create(dai.node.MonoCamera)
     monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
     monoLeft.setBoardSocket(dai.CameraBoardSocket.LEFT)
-    monoLeft.setFps(25)
+    monoLeft.setFps(fps)
 
     # Mono right
     monoRight = pipeline.create(dai.node.MonoCamera)
     monoRight.setResolution(
         dai.MonoCameraProperties.SensorResolution.THE_400_P)
     monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
-    monoRight.setFps(25)
+    monoRight.setFps(fps)
 
     # Stereo
     stereo = pipeline.create(dai.node.StereoDepth)
@@ -57,8 +58,10 @@ def create_pipeline(transport_depth: bool=False) -> dai.Pipeline:
     faceDetNN.setConfidenceThreshold(0.5)
     faceDetNN.setBlobPath(blobconverter.from_zoo(
         name='face-detection-retail-0004',
-        shaves=6,
+        shaves=10,
     ))
+    faceDetNN.setNumInferenceThreads(2)
+    faceDetNN.setNumNCEPerInferenceThread(1)
     faceDetNN.input.setBlocking(False)
     faceDetNN.input.setQueueSize(1)
 
