@@ -10,8 +10,8 @@ class HostSync:
         self._queues = [(q, device.getOutputQueue(q, maxSize=1, blocking=False)) for q in queues]
         self._queue_names = queues
         self._n_queues = len(queues)
-        self._last_sync_seq = -float('inf')
-        self._last_rec_seq = -float('inf')
+        self._last_sync_seq = -1
+        self._last_rec_seq = -1
         self._print_add = print_add
 
     def get(self):

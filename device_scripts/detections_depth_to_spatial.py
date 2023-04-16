@@ -89,10 +89,6 @@ while True:
     faces_buffer.pop()
     #node.warn(f'db {[x.getSequenceNum() if x is not None else "-" for x in depth_buffer._buf]}')
     #node.warn(f'fb {[x.getSequenceNum() if x is not None else "-" for x in faces_buffer._buf]}')
-
-    if depth is None or faces is None:
-        continue
-
     #node.warn(f'Got depth[{depth.getSequenceNum()}] and faces[{faces.getSequenceNum()}]')
     
     rois = []

@@ -1,16 +1,25 @@
+import json
+import typing
 import pipeline
 import depthai as dai
 import host_sync
 import cv2
 import utils
 import time
+import struct
 
-DISPLAY_SIZE = (500, 500)
+DISPLAY_SIZE: tuple[int, int] = (500, 500)
 
 def main():
     show_depth = False
+    print('Creating pipeline...')
+    pl = pipeline.create_pipeline(show_depth)
+    print('Saving pipeline to JSON...')
+    with open('pipeline.json', 'w') as f:
+        json.dump(pl.serializeToJson(), f, indent=2)
     print('Initializing device...')
-    with dai.Device(pipeline.create_pipeline(show_depth)) as device:
+    with dai.Device(pipeline.create_pipeline(show_depth)) as dev:
+        device = typing.cast(dai.Device, dev)
         print('Device initialized.')
         run(device, show_depth)
 
@@ -20,8 +29,7 @@ def run(device: dai.Device, show_depth: bool):
     device.setLogOutputLevel(dai.LogLevel.INFO)
     queues = [
         'color',
-        'faces',
-        'spatial'
+        'nearest_face'
     ]
     if show_depth:
         queues.append('depth')
@@ -38,29 +46,29 @@ def loop(sync: host_sync.HostSync, show_depth: bool) -> bool:
     print('Seq', seq, 'lag', sync.get_lag())
 
     color_in: dai.ImgFrame = msgs.get('color', None)
-    faces_in: dai.ImgDetections = msgs.get('faces', None)
-    spatial_in: dai.SpatialLocationCalculatorData = msgs.get('spatial', None)
-    #print(seq, color_in, faces_in, spatial_in)
+    nearest_face_in: dai.NNData = msgs.get('nearest_face', None)
 
-    color = color_in.getCvFrame()
+    color = typing.cast(cv2.Mat, color_in.getCvFrame())
 
-    for i, det in enumerate(faces_in.detections):
-        rect = utils.process_detection(color_in, det)
-        x0 = int(rect.topLeft().x)
-        y0 = int(rect.topLeft().y)
-        x1 = int(rect.bottomRight().x)
-        y1 = int(rect.bottomRight().y)
-        color = cv2.rectangle(color, (x0, y0), (x1, y1), (255, 255, 255), 5)
-        if i < len(spatial_in.getSpatialLocations()):
-            location = spatial_in.getSpatialLocations()[i]
-            color = cv2.putText(color, f'{location.depthAverage:.01f}', (x0, y0), 0, 2, (255, 255, 255), 3)
+    bbox_raw = nearest_face_in.getLayerFp16('bbox')
+    if bbox_raw is not None and len(bbox_raw) == 4:
+        rect = dai.Rect(dai.Point2f(1 - bbox_raw[2], bbox_raw[1]),
+                        dai.Point2f(1 - bbox_raw[0], bbox_raw[3]))
+        rect = rect.denormalize(color_in.getWidth(), color_in.getHeight())
+        xmin = int(rect.topLeft().x)
+        ymin = int(rect.topLeft().y)
+        xmax = int(rect.bottomRight().x)
+        ymax = int(rect.bottomRight().y)
+        bbox_top_left = (xmin, ymin)
+        bbox_bottom_right = (xmax, ymax)
+        color = cv2.rectangle(color, bbox_top_left, bbox_bottom_right, (255, 255, 255), 5)
     
     color_resized = cv2.resize(color, DISPLAY_SIZE)
     cv2.imshow('Color', color_resized)
 
     if show_depth:
         depth_in: dai.ImgFrame = msgs.get('depth', None)
-        stereo_cfg_in: dai.StereoDepthConfig = sync.device.getOutputQueue('stereo_cfg').get()
+        stereo_cfg_in: dai.StereoDepthConfig = typing.cast(dai.StereoDepthConfig, sync.device.getOutputQueue('stereo_cfg').get())
         depth = utils.depth_to_cv_frame(depth_in, stereo_cfg_in)
         depth_resized = cv2.resize(depth, DISPLAY_SIZE)
         cv2.imshow('Depth', depth_resized)

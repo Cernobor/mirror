@@ -2,7 +2,7 @@ import depthai as dai
 import blobconverter
 
 
-def create_pipeline(transport_depth=False):
+def create_pipeline(transport_depth: bool=False) -> dai.Pipeline:
     pipeline = dai.Pipeline()
 
     # Nodes
@@ -80,6 +80,17 @@ def create_pipeline(transport_depth=False):
     spatial.inputDepth.setBlocking(False)
     spatial.inputDepth.setQueueSize(1)
 
+    # Script collecting face detections, their distances, and video frame, picking out the nearest face, and sending it with the frame out
+    faceSpatialSelectionColorSync = pipeline.create(dai.node.Script)
+    faceSpatialSelectionColorSync.setProcessor(dai.ProcessorType.LEON_CSS)
+    faceSpatialSelectionColorSync.setScript(load_script('device_scripts/nearest_face_with_frame.py'))
+    faceSpatialSelectionColorSync.inputs['color'].setBlocking(False)
+    faceSpatialSelectionColorSync.inputs['color'].setQueueSize(1)
+    faceSpatialSelectionColorSync.inputs['faces'].setBlocking(False)
+    faceSpatialSelectionColorSync.inputs['faces'].setQueueSize(1)
+    faceSpatialSelectionColorSync.inputs['spatial'].setBlocking(False)
+    faceSpatialSelectionColorSync.inputs['spatial'].setQueueSize(1)
+
     # IO
 
     # Color out
@@ -94,16 +105,11 @@ def create_pipeline(transport_depth=False):
         # Depth out
         depthXout = pipeline.create(dai.node.XLinkOut)
         depthXout.setStreamName('depth')
-    # Face detection out
-    facesXout = pipeline.create(dai.node.XLinkOut)
-    facesXout.setStreamName('faces')
-    facesXout.input.setBlocking(False)
-    facesXout.input.setQueueSize(1)
-    # Spatial locations out
-    spatialXout = pipeline.create(dai.node.XLinkOut)
-    spatialXout.setStreamName('spatial')
-    spatialXout.input.setBlocking(False)
-    spatialXout.input.setQueueSize(1)
+    # Nearest face detection out
+    nearestFaceXout = pipeline.create(dai.node.XLinkOut)
+    nearestFaceXout.setStreamName('nearest_face')
+    nearestFaceXout.input.setBlocking(False)
+    nearestFaceXout.input.setQueueSize(1)
 
     # Linking
 
@@ -114,26 +120,30 @@ def create_pipeline(transport_depth=False):
     monoRight.out.link(stereo.right)
     # Color -> color flip
     color.video.link(colorFlip.inputImage)
-    # Color flip -> color out
-    colorFlip.out.link(colorXout.input)
+    # Color flip -> nearest face picker
+    colorFlip.out.link(faceSpatialSelectionColorSync.inputs['color'])
     # Stereo depth -> depth crop
     stereo.depth.link(depthCrop.inputImage)
     # Depth crop -> detections-depth to spatial
     depthCrop.out.link(detectionsDepthToSpatial.inputs['depth'])
     if transport_depth:
         # Stereo config -> stereo config out
-        stereo.outConfig.link(stereoCfgXout.input)
+        stereo.outConfig.link(stereoCfgXout.input) # type: ignore
         # Depth crop -> depth out
-        depthCrop.out.link(depthXout.input)
-    # Face detection -> face detection out
-    faceDetNN.out.link(facesXout.input)
+        depthCrop.out.link(depthXout.input) # type: ignore
     # Face detection -> detections-depth to spatial
     faceDetNN.out.link(detectionsDepthToSpatial.inputs['faces'])
+    # Face detection -> nearest face picker
+    faceDetNN.out.link(faceSpatialSelectionColorSync.inputs['faces'])
     # Detections-depth to spatial cfg/depth -> spatial locator cfg/depth
     detectionsDepthToSpatial.outputs['depth_cfg'].link(spatial.inputConfig)
     detectionsDepthToSpatial.outputs['depth_img'].link(spatial.inputDepth)
-    # Spatial locator -> spatial out
-    spatial.out.link(spatialXout.input)
+    # Spatial locator -> nearest face picker
+    spatial.out.link(faceSpatialSelectionColorSync.inputs['spatial'])
+    # Nearest face picker - face -> nearest face out
+    faceSpatialSelectionColorSync.outputs['nearest_face'].link(nearestFaceXout.input)
+    # Nearest face picker - color -> color out
+    faceSpatialSelectionColorSync.outputs['color_pass'].link(colorXout.input)
 
     return pipeline
 
