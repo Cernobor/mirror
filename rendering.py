@@ -54,11 +54,12 @@ class Renderer:
         self.bbox = BBox(0, 0, 0, 0)
         self.first_true_seq = -1
         self.last_true_seq = -1
+        self.debug_divisor = 2
         
         ds = self.display_size
         fs = pygame.FULLSCREEN
         if self.debug:
-            ds = (self.display_size[1] // 4, self.display_size[0] // 4)
+            ds = (self.display_size[1] // self.debug_divisor, self.display_size[0] // self.debug_divisor)
             fs = 0
         elif not self.screen_rotated:
             ds = tuple(reversed(ds))
@@ -68,13 +69,13 @@ class Renderer:
 
         self.max_emit = 200
         if self.debug:
-            self.max_emit = self.max_emit // 4
+            self.max_emit = self.max_emit // self.debug_divisor
         self.max_thickness = 10
         if self.debug:
-            self.max_thickness = self.max_thickness // 4
+            self.max_thickness = self.max_thickness // self.debug_divisor
         self.cov_scale = 20
         if self.debug:
-            self.cov_scale = self.cov_scale / 4
+            self.cov_scale = self.cov_scale / self.debug_divisor
         
         self.horizontal_idx = 1
         self.vertical_idx = 0
@@ -84,21 +85,61 @@ class Renderer:
 
         self.time = time.time()
     
+    def update_particles(self, emit: int):
+        now = time.time()
+        delta = now - self.time
+        self.time = now
+
+        self.psys.update(delta_time=delta)
+        if self.debug or self.screen_rotated:
+            bounds1 = self.bbox.x_bounds()
+            bounds2 = self.bbox.y_bounds()
+        else:
+            bounds1 = self.bbox.y_bounds()
+            bounds2 = self.bbox.x_bounds(flip=True, offset=self.image_size[0])
+        center = np.array((np.mean(bounds1), np.mean(bounds2)))
+        for _ in range(int(emit)):
+            pos = self.rng.multivariate_normal(
+                mean=center,
+                cov=np.array([[(bounds1[1] - bounds1[0]) * self.cov_scale, 0],
+                                [0, (bounds2[1] - bounds2[0]) * self.cov_scale]]))
+            vel = (random.uniform(0, 200), (pos[self.horizontal_idx] - center[self.horizontal_idx]) * 2)
+            if self.debug:
+                vel = (vel[0] / self.debug_divisor, vel[1])
+            if self.debug or self.screen_rotated:
+                vel = tuple(reversed(vel))
+            self.psys.emit(
+                particle=particlepy.particle.Particle(
+                    shape=particlepy.shape.Circle(
+                        radius=10,
+                        color=(255, 0, 0),
+                        alpha=64
+                    ),
+                    position=(int(pos[0]), int(pos[1])),
+                    velocity=vel,
+                    delta_radius=.75,
+                    data={'emit_center': center}
+                )
+            )
+        dv = -1500 * delta
+        if self.debug:
+            dv /= 4
+        for p in self.psys.particles:
+            p.velocity[self.vertical_idx] += dv
+
     def render(self, frame: cv2.Mat, face_bbox: Optional[BBox], seq: int):
         """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
         Renders the final image.
         
         Returns True when user wants to terminate."""
-        now = time.time()
-        delta = now - self.time
-
         if self.debug:
-            frame = cv2.resize(frame, (self.image_size[1] // 4, self.image_size[0] // 4))
+            frame = cv2.resize(frame, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
 
         emit = self.max_emit
         thickness = self.max_thickness
         if face_bbox is None:
             coef = (2 ** (0.3 * (self.last_true_seq - seq)))
+            self.pg_screen.fill((0, 0, int(255 * coef)))
             emit *= coef
             thickness *= coef
             self.first_true_seq = -1
@@ -107,6 +148,7 @@ class Renderer:
                 self.first_true_seq = seq
             
             coef = (2 ** (0.34 * min(seq - self.first_true_seq - 10, 0)))
+            self.pg_screen.fill((0, 0, int(255 * coef)))
             emit *= coef
             thickness *= coef
             tl = face_bbox.top_left()
@@ -114,7 +156,7 @@ class Renderer:
             self.bbox = BBox(tl[0], tl[1], br[0], br[1])
             
             if self.debug:
-                self.bbox = BBox(self.bbox.x0 // 4, self.bbox.y0 // 4, self.bbox.x1 // 4, self.bbox.y1 // 4)
+                self.bbox = BBox(self.bbox.x0 // self.debug_divisor, self.bbox.y0 // self.debug_divisor, self.bbox.x1 // self.debug_divisor, self.bbox.y1 // self.debug_divisor)
             
             self.last_true_seq = seq
         
@@ -131,49 +173,15 @@ class Renderer:
         pg_psys = pygame.Surface(pg_face.get_size())
         #pg_psys.fill((255, 255, 255))
 
-        self.psys.update(delta_time=delta)
-        for _ in range(int(emit)):
-            if self.debug or self.screen_rotated:
-                bounds1 = self.bbox.x_bounds()
-                bounds2 = self.bbox.y_bounds()
-            else:
-                bounds1 = self.bbox.y_bounds()
-                bounds2 = self.bbox.x_bounds(flip=True, offset=self.image_size[0])
-            center = np.array((np.mean(bounds1), np.mean(bounds2)))
-            pos = self.rng.multivariate_normal(
-                mean=center,
-                cov=np.array([[(bounds1[1] - bounds1[0]) * self.cov_scale, 0],
-                                [0, (bounds2[1] - bounds2[0]) * self.cov_scale]]))
-            vel = (random.uniform(0, 200), (pos[self.horizontal_idx] - center[self.horizontal_idx]) * 2)
-            if self.debug:
-                vel = (vel[0] / 4, vel[1])
-            if self.debug or self.screen_rotated:
-                vel = tuple(reversed(vel))
-            self.psys.emit(
-                particle=particlepy.particle.Particle(
-                    shape=particlepy.shape.Circle(
-                        radius=10,
-                        color=(255, 0, 0),
-                        alpha=64
-                    ),
-                    position=(int(pos[0]), int(pos[1])),
-                    velocity=vel,
-                    delta_radius=.75,
-                )
-            )
-        dv = -1500 * delta
-        if self.debug:
-            dv /= 4
-        for p in self.psys.particles:
-            p.velocity[self.vertical_idx] += dv
+        self.update_particles(emit)
+        
         self.psys.make_shape()
-
         self.psys.render(surface=pg_psys)
 
         pg_face.blit(pg_psys, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
         if self.debug:
-            self.pg_screen.blit(pg_face, (0, self.vertical_diff // 4))
+            self.pg_screen.blit(pg_face, (0, self.vertical_diff // self.debug_divisor))
         elif not self.screen_rotated:
             self.pg_screen.blit(pg_face, (self.vertical_diff, 0))
         else:
@@ -181,7 +189,6 @@ class Renderer:
 
         pygame.display.update()
 
-        self.time = now
         for event in pygame.event.get():
             if event.type == pygame.KEYUP and event.unicode == 'q':
                 pygame.quit()
