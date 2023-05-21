@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import depthai as dai
 import numpy as np
 import cv2
@@ -29,3 +30,10 @@ def depth_to_cv_frame(image: dai.ImgFrame, cfg: dai.StereoDepthConfig) -> np.nda
 def process_detection(img: dai.ImgFrame, xmin, ymin, xmax, ymax) -> dai.Rect:
     return dai.Rect(dai.Point2f(img.getWidth() - xmax, ymin),
                     dai.Point2f(img.getWidth() - xmin, ymax))
+
+
+@dataclass
+class Config:
+    debug: bool
+    screen_rotated: bool
+    show_depth: bool

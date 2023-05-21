@@ -3,7 +3,8 @@ depthai
 numpy
 blobconverter
 pygame
-git+https://github.com/pvigier/perlin-numpy@5e26837#egg=perlin-numpy
+particlepy
+#git+https://github.com/pvigier/perlin-numpy@5e26837#egg=perlin-numpy
 # for pipeline visualisation
 #git+https://github.com/geaxgx/depthai_pipeline_graph.git
 #PySide2

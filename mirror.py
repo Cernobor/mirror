@@ -1,6 +1,7 @@
 import json
 import typing
 import time
+import argparse
 
 import numpy as np
 import depthai as dai
@@ -15,20 +16,30 @@ DISPLAY_SIZE: tuple[int, int] = (1920, 1080)
 IMAGE_SIZE: tuple[int, int] = (1080, 1080)
 
 def main():
-    show_depth = False
+    config = parse_args()
     print('Creating pipeline...')
-    pl = pipeline.create_pipeline(show_depth)
+    pl = pipeline.create_pipeline(config.show_depth)
     print('Saving pipeline to JSON...')
     with open('pipeline.json', 'w') as f:
         json.dump(pl.serializeToJson(), f, indent=2)
     print('Initializing device...')
-    with dai.Device(pipeline.create_pipeline(show_depth)) as dev:
+    with dai.Device(pipeline.create_pipeline(config.show_depth)) as dev:
         device = typing.cast(dai.Device, dev)
         print('Device initialized.')
-        run(device, show_depth)
+        run(device, config)
 
 
-def run(device: dai.Device, show_depth: bool):
+def parse_args() -> utils.Config:
+    ap = argparse.ArgumentParser('mirror')
+    ap.add_argument('--debug', action='store_true')
+    ap.add_argument('--screen-rotated', action='store_true')
+    ap.add_argument('--show-depth', action='store_true')
+
+    ns = ap.parse_args()
+    return utils.Config(ns.debug, ns.screen_rotated, ns.show_depth)
+
+
+def run(device: dai.Device, config: utils.Config):
     print(device.getUsbSpeed())
     device.setLogLevel(dai.LogLevel.INFO)
     device.setLogOutputLevel(dai.LogLevel.INFO)
@@ -36,10 +47,10 @@ def run(device: dai.Device, show_depth: bool):
         'color',
         'nearest_face'
     ]
-    if show_depth:
+    if config.show_depth:
         queues.append('depth')
     sync = host_sync.HostSync(device, *queues, print_add=False)
-    renderer = Renderer(DISPLAY_SIZE, IMAGE_SIZE)
+    renderer = Renderer(DISPLAY_SIZE, IMAGE_SIZE, config.screen_rotated, config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
 
