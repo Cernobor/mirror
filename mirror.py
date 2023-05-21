@@ -5,11 +5,10 @@ import time
 import numpy as np
 import depthai as dai
 import cv2
-import pygame
 
 import pipeline
 import host_sync
-from processing import BBox, Processor
+from rendering import BBox, Renderer
 import utils
 
 DISPLAY_SIZE: tuple[int, int] = (1920, 1080)
@@ -40,12 +39,9 @@ def run(device: dai.Device, show_depth: bool):
     if show_depth:
         queues.append('depth')
     sync = host_sync.HostSync(device, *queues, print_add=False)
-    processor = Processor()
+    renderer = Renderer(DISPLAY_SIZE, IMAGE_SIZE)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
-
-    dest_image = np.zeros((DISPLAY_SIZE[0], DISPLAY_SIZE[1], 3), dtype=np.uint8)
-    pg_screen = pygame.display.set_mode(size=DISPLAY_SIZE, flags=pygame.FULLSCREEN)
 
     while True:
         time.sleep(0.001)
@@ -76,13 +72,11 @@ def run(device: dai.Device, show_depth: bool):
                         int(rect.topLeft().y),
                         int(rect.bottomRight().x),
                         int(rect.bottomRight().y))
-        processor.process(color, dest_image, bbox, seq)
+        if renderer.render(color, bbox, seq):
+            print('Requested stoppage.')
+            break
         
-        #cv2.imshow('Color', dest_image)
-        dest_image = cv2.flip(dest_image, 1, dest_image)
-        pg_frame = pygame.surfarray.make_surface(cv2.cvtColor(dest_image, cv2.COLOR_RGB2BGR))
-        pg_screen.blit(pg_frame, (0, 0))
-        pygame.display.update()
+        #cv2.imshow('Color', color)
 
         #if show_depth:
         #    depth_in: dai.ImgFrame = msgs.get('depth', None)
@@ -93,11 +87,6 @@ def run(device: dai.Device, show_depth: bool):
         
         #if cv2.waitKey(1) == ord('q'):
         #    break
-
-        for event in pygame.event.get():
-            if event.type == pygame.KEYUP:
-                pygame.quit()
-                return
 
 
 if __name__ == '__main__':
