@@ -1,16 +1,19 @@
 import json
 import typing
-
-import numpy as np
-import pipeline
-import depthai as dai
-import host_sync
-import cv2
-from processing import BBox, Processor
-import utils
 import time
 
-DISPLAY_SIZE: tuple[int, int] = (500, 500)
+import numpy as np
+import depthai as dai
+import cv2
+import pygame
+
+import pipeline
+import host_sync
+from processing import BBox, Processor
+import utils
+
+DISPLAY_SIZE: tuple[int, int] = (1920, 1080)
+IMAGE_SIZE: tuple[int, int] = (1080, 1080)
 
 def main():
     show_depth = False
@@ -40,6 +43,10 @@ def run(device: dai.Device, show_depth: bool):
     processor = Processor()
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
+
+    dest_image = np.zeros((DISPLAY_SIZE[0], DISPLAY_SIZE[1], 3), dtype=np.uint8)
+    pg_screen = pygame.display.set_mode(size=DISPLAY_SIZE, flags=pygame.FULLSCREEN)
+
     while True:
         time.sleep(0.001)
         msgs, seq = sync.get()
@@ -56,7 +63,8 @@ def run(device: dai.Device, show_depth: bool):
         latency_buffer_idx = (latency_buffer_idx + 1) % latency_buffer.size
         #print('Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(latency, np.average(latency_buffer), np.std(latency_buffer)))
 
-        color = typing.cast(cv2.Mat, color_in.getCvFrame())
+        color_frame = color_in.getCvFrame()
+        color = typing.cast(cv2.Mat, color_frame)
 
         bbox_raw = nearest_face_in.getLayerFp16('bbox')
         bbox = None
@@ -68,20 +76,28 @@ def run(device: dai.Device, show_depth: bool):
                         int(rect.topLeft().y),
                         int(rect.bottomRight().x),
                         int(rect.bottomRight().y))
-        color = processor.process(color, bbox, seq)
+        processor.process(color, dest_image, bbox, seq)
         
-        color_resized = cv2.resize(color, DISPLAY_SIZE)
-        cv2.imshow('Color', color_resized)
+        #cv2.imshow('Color', dest_image)
+        dest_image = cv2.flip(dest_image, 1, dest_image)
+        pg_frame = pygame.surfarray.make_surface(cv2.cvtColor(dest_image, cv2.COLOR_RGB2BGR))
+        pg_screen.blit(pg_frame, (0, 0))
+        pygame.display.update()
 
-        if show_depth:
-            depth_in: dai.ImgFrame = msgs.get('depth', None)
-            stereo_cfg_in: dai.StereoDepthConfig = typing.cast(dai.StereoDepthConfig, sync.device.getOutputQueue('stereo_cfg').get())
-            depth = utils.depth_to_cv_frame(depth_in, stereo_cfg_in)
-            depth_resized = cv2.resize(depth, DISPLAY_SIZE)
-            cv2.imshow('Depth', depth_resized)
+        #if show_depth:
+        #    depth_in: dai.ImgFrame = msgs.get('depth', None)
+        #    stereo_cfg_in: dai.StereoDepthConfig = typing.cast(dai.StereoDepthConfig, sync.device.getOutputQueue('stereo_cfg').get())
+        #    depth = utils.depth_to_cv_frame(depth_in, stereo_cfg_in)
+        #    depth_resized = cv2.resize(depth, DISPLAY_SIZE)
+        #    #cv2.imshow('Depth', depth_resized)
         
-        if cv2.waitKey(1) == ord('q'):
-            break
+        #if cv2.waitKey(1) == ord('q'):
+        #    break
+
+        for event in pygame.event.get():
+            if event.type == pygame.KEYUP:
+                pygame.quit()
+                return
 
 
 if __name__ == '__main__':
