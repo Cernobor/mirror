@@ -1,11 +1,14 @@
 from dataclasses import dataclass
+import math
 import random
 import time
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple, TypeVar, Union
 import cv2
 import pygame
 import numpy as np
 from particlepy import particlepy
+
+T = TypeVar('T')
 
 
 @dataclass
@@ -61,9 +64,22 @@ class Renderer:
         if self.debug:
             ds = (self.display_size[1] // self.debug_divisor, self.display_size[0] // self.debug_divisor)
             fs = 0
+
+            size = (self.display_size[1] // self.debug_divisor, self.vertical_diff // self.debug_divisor)
+            dim = min(size)
+            self.indicator_offset = ((max(size) - dim) // 2, min(size) - dim)
         elif not self.screen_rotated:
             ds = tuple(reversed(ds))
+
+            size = (self.vertical_diff, self.display_size[1])
+            dim = min(size)
+            self.indicator_offset = (min(size) - dim, (max(size) - dim) // 2)
+        else:
+            size = (self.display_size[1], self.vertical_diff)
+            dim = min(size)
+            self.indicator_offset = ((max(size) - dim) // 2, min(size) - dim)
         self.pg_screen = pygame.display.set_mode(size=ds, flags=fs)
+        self.pg_indicator = pygame.Surface((dim, dim))
         self.psys = particlepy.particle.ParticleSystem()
         self.rng = np.random.default_rng()
 
@@ -82,6 +98,58 @@ class Renderer:
         if self.debug or self.screen_rotated:
             self.horizontal_idx = 0
             self.vertical_idx = 1
+        
+        self.stars = dict()
+        for size in [s for s in range(2, 50)]:
+            coord_vec = np.linspace(-1, 1, size)
+            xx, yy = np.meshgrid(coord_vec, coord_vec)
+            brightness = 1 - np.sqrt(xx**2 + yy**2)
+            brightness[brightness < 0] = 0
+            brightness[brightness > 0.5] = 1
+            brightness[brightness < 1] /= brightness[brightness < 1].max()
+            brightness = np.rint(brightness * 255).astype(int)
+            color = np.stack((brightness,) * 3, axis=-1)
+            self.stars[size] = {
+                'data': color,
+                'center_offset': (-size // 2, -size // 2)
+            }
+        self.background_stars = []
+        for _ in range(250):
+            stars = [self.stars[s] for s in range(4, 8)]
+            mult_range = (0.4, 0.7)
+            mult_speed = 0.15 * (mult_range[1] - mult_range[0]) * (2 * random.random() - 1)
+            mult = (mult_range[1] - mult_range[0]) * random.random() + mult_range[0]
+            star = {
+                'coords': np.random.rand(2),
+                'star': random.choice(stars),
+                'mult': mult,
+                'mult_range': mult_range,
+                'mult_speed': mult_speed,
+                'background': True
+            }
+            self.background_stars.append(star)
+        t = np.linspace(0, 1, 30) ** 1
+        r_in = 0.5 * 0.2
+        r_out = 0.5 * 0.75
+        rots = 5.0
+        v = r_out - r_in
+        x = (v * t + r_in) * np.cos(2 * np.pi * rots * t) + 0.5
+        y = (v * t + r_in) * np.sin(2 * np.pi * rots * t) + 0.5
+        foreground_star_coords = np.stack((x, y), axis=-1)
+        print(foreground_star_coords)
+        for c in foreground_star_coords:
+            stars = [self.stars[s] for s in range(12, 25)]
+            mult_range = (0.9, 1)
+            mult_speed = 0.15 * (mult_range[1] - mult_range[0]) * (2 * random.random() - 1)
+            mult = (mult_range[1] - mult_range[0]) * random.random() + mult_range[0]
+            self.background_stars.append({
+                'coords': c,
+                'star': random.choice(stars),
+                'mult': mult,
+                'mult_range': mult_range,
+                'mult_speed': mult_speed,
+                'background': False
+            })
 
         self.time = time.time()
     
@@ -127,38 +195,21 @@ class Renderer:
         for p in self.psys.particles:
             p.velocity[self.vertical_idx] += dv
 
-    def render(self, frame: cv2.Mat, face_bbox: Optional[BBox], seq: int):
-        """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
-        Renders the final image.
-        
-        Returns True when user wants to terminate."""
-        if self.debug:
-            frame = cv2.resize(frame, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
-
-        emit = self.max_emit
-        thickness = self.max_thickness
-        if face_bbox is None:
-            coef = (2 ** (0.3 * (self.last_true_seq - seq)))
-            self.pg_screen.fill((0, 0, int(255 * coef)))
-            emit *= coef
-            thickness *= coef
-            self.first_true_seq = -1
-        else:
-            if self.first_true_seq == -1:
-                self.first_true_seq = seq
-            
+    def render_face(self, frame: cv2.Mat, face_bbox: Optional[BBox], seq: int):
+        is_face = face_bbox is not None
+        if is_face:
+            #print(seq - self.first_true_seq)
             coef = (2 ** (0.34 * min(seq - self.first_true_seq - 10, 0)))
-            self.pg_screen.fill((0, 0, int(255 * coef)))
-            emit *= coef
-            thickness *= coef
             tl = face_bbox.top_left()
             br = face_bbox.bottom_right()
             self.bbox = BBox(tl[0], tl[1], br[0], br[1])
-            
             if self.debug:
                 self.bbox = BBox(self.bbox.x0 // self.debug_divisor, self.bbox.y0 // self.debug_divisor, self.bbox.x1 // self.debug_divisor, self.bbox.y1 // self.debug_divisor)
-            
-            self.last_true_seq = seq
+        else:
+            coef = (2 ** (0.3 * (self.last_true_seq - seq)))
+        
+        emit = self.max_emit * coef
+        thickness = self.max_thickness * coef
         
         it = int(thickness)
         if it > 0 and self.debug:
@@ -186,6 +237,61 @@ class Renderer:
             self.pg_screen.blit(pg_face, (self.vertical_diff, 0))
         else:
             self.pg_screen.blit(pg_face, (0, self.vertical_diff))
+    
+    def render_indicator(self, is_face: bool, seq: int):
+        self.pg_indicator.fill((0, 0, 0))
+
+        delay_in_time = 24
+        fade_time = 48
+        if is_face:
+            t = seq - self.first_true_seq
+            coef = max(min((t - delay_in_time) / fade_time, 1), 0)
+        else:
+            t = seq - self.last_true_seq
+            coef = -min(t / fade_time - 1, 0)
+        
+        size = self.pg_indicator.get_size()
+        for bs in self.background_stars:
+            s = bs['star']
+            d = s['data']
+            coords = self.switch_coords(bs['coords'])
+            coords = (
+                int(coords[0] * size[0]) + s['center_offset'][0],
+                int(coords[1] * size[1]) + s['center_offset'][1]
+            )
+
+            m = bs['mult']
+            mr = bs['mult_range']
+            ms = bs['mult_speed']
+            bs['mult'] = min(max(m + ms, mr[0]), mr[1])
+            bs['mult_speed'] += 0.15 * (mr[1] - mr[0]) * (2 * random.random() - 1)
+            if not bs['background']:
+                m *= coef
+            if int(255 * m) < 1:
+                continue
+
+            surf = pygame.surfarray.make_surface(d * m)
+            self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
+
+        self.pg_screen.blit(self.pg_indicator, self.indicator_offset)
+    
+    def render(self, frame: cv2.Mat, face_bbox: Optional[BBox], seq: int):
+        """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
+        Renders the final image.
+        
+        Returns True when user wants to terminate."""
+        if self.debug:
+            frame = cv2.resize(frame, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
+        
+        if face_bbox is not None:
+            self.last_true_seq = seq
+            if self.first_true_seq == -1:
+                self.first_true_seq = seq
+        else:
+            self.first_true_seq = -1
+        
+        self.render_face(frame, face_bbox, seq)
+        self.render_indicator(face_bbox is not None, seq)
 
         pygame.display.update()
 
@@ -194,3 +300,8 @@ class Renderer:
                 pygame.quit()
                 return True
         return False
+
+    def switch_coords(self, c: Tuple[int, int]) -> Tuple[int, int]:
+        if not self.debug:
+            return c[1], c[0]
+        return c
