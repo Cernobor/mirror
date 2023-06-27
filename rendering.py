@@ -38,7 +38,7 @@ class BBox:
 
 
 class Renderer:
-    def __init__(self, display_size: Tuple[int, int], image_size: Tuple[int, int], screen_rotated: bool, debug: bool=False) -> None:
+    def __init__(self, display_size: Tuple[int, int], image_size: Tuple[int, int], screen_rotated: bool, particles: bool, depth: int, debug: bool=False) -> None:
         self.display_size = display_size
         self.image_size = image_size
         print('display_size', display_size)
@@ -48,6 +48,8 @@ class Renderer:
         print('{vertical,horizontal}_diff', self.vertical_diff, self.horizontal_diff)
 
         self.screen_rotated = screen_rotated
+        self.particles = particles
+        self.depth = depth
         self.debug = debug
 
         self._prepare()
@@ -136,7 +138,7 @@ class Renderer:
         x = (v * t + r_in) * np.cos(2 * np.pi * rots * t) + 0.5
         y = (v * t + r_in) * np.sin(2 * np.pi * rots * t) + 0.5
         foreground_star_coords = np.stack((x, y), axis=-1)
-        print(foreground_star_coords)
+        #print(foreground_star_coords)
         for c in foreground_star_coords:
             stars = [self.stars[s] for s in range(12, 25)]
             mult_range = (0.9, 1)
@@ -195,7 +197,9 @@ class Renderer:
         for p in self.psys.particles:
             p.velocity[self.vertical_idx] += dv
 
-    def render_face(self, frame: cv2.Mat, face_bbox: Optional[BBox], seq: int):
+    def render_face(self, color: cv2.Mat, depth: cv2.Mat, face_bbox: Optional[BBox], seq: int):
+        if self.depth > 0:
+            color[np.logical_or(depth > self.depth, depth < 350), :] = 0
         is_face = face_bbox is not None
         if is_face:
             #print(seq - self.first_true_seq)
@@ -213,23 +217,24 @@ class Renderer:
         
         it = int(thickness)
         if it > 0 and self.debug:
-            cv2.rectangle(frame, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), it)
+            cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), it)
             pass
 
-        cv2.flip(frame, 1, frame)
+        cv2.flip(color, 1, color)
         if self.debug or self.screen_rotated:
-            frame = np.rot90(frame)
+            color = np.rot90(color)
         
-        pg_face = pygame.surfarray.make_surface(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        pg_psys = pygame.Surface(pg_face.get_size())
-        #pg_psys.fill((255, 255, 255))
-
-        self.update_particles(emit)
+        pg_face = pygame.surfarray.make_surface(cv2.cvtColor(color, cv2.COLOR_BGR2RGB))
         
-        self.psys.make_shape()
-        self.psys.render(surface=pg_psys)
+        if self.particles:
+            pg_psys = pygame.Surface(pg_face.get_size())
 
-        pg_face.blit(pg_psys, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            self.update_particles(emit)
+            
+            self.psys.make_shape()
+            self.psys.render(surface=pg_psys)
+
+            pg_face.blit(pg_psys, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
         if self.debug:
             self.pg_screen.blit(pg_face, (0, self.vertical_diff // self.debug_divisor))
@@ -275,13 +280,17 @@ class Renderer:
 
         self.pg_screen.blit(self.pg_indicator, self.indicator_offset)
     
-    def render(self, frame: cv2.Mat, face_bbox: Optional[BBox], seq: int):
+    def render(self, color: cv2.Mat, depth: cv2.Mat, face_bbox: Optional[BBox], seq: int) -> bool:
         """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
         Renders the final image.
         
         Returns True when user wants to terminate."""
+        if color.shape[:2] != depth.shape[:2]:
+            #print(color.shape, depth.shape)
+            depth = cv2.resize(depth, color.shape[:2])
         if self.debug:
-            frame = cv2.resize(frame, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
+            color = cv2.resize(color, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
+            depth = cv2.resize(depth, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
         
         if face_bbox is not None:
             self.last_true_seq = seq
@@ -290,7 +299,7 @@ class Renderer:
         else:
             self.first_true_seq = -1
         
-        self.render_face(frame, face_bbox, seq)
+        self.render_face(color, depth, face_bbox, seq)
         self.render_indicator(face_bbox is not None, seq)
 
         pygame.display.update()

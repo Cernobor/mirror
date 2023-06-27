@@ -7,7 +7,7 @@ import math
 BASELINE = 75
 FOV = 73
 
-def depth_to_cv_frame(image: dai.ImgFrame, cfg: dai.StereoDepthConfig) -> np.ndarray:
+def depth_to_cv_frame(frame: np.ndarray, cfg: dai.StereoDepthConfig) -> np.ndarray:
     max_disparity = cfg.getMaxDisparity()
     subpixel_levels = math.pow(2, cfg.get().algorithmControl.subpixelFractionalBits)
     subpixel = cfg.get().algorithmControl.enableSubpixel
@@ -16,7 +16,6 @@ def depth_to_cv_frame(image: dai.ImgFrame, cfg: dai.StereoDepthConfig) -> np.nda
     else:
         disparity_integer_levels = max_disparity
     
-    frame = image.getFrame()
     focal = frame.shape[1] / (2 * math.tan(FOV / 2 / 180 * math.pi))
     disparity_scale_factor = BASELINE * focal
 
@@ -35,5 +34,6 @@ def process_detection(img: dai.ImgFrame, xmin, ymin, xmax, ymax) -> dai.Rect:
 @dataclass
 class Config:
     debug: bool
+    particles: bool
+    depth: int
     screen_rotated: bool
-    show_depth: bool

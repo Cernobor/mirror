@@ -18,12 +18,12 @@ IMAGE_SIZE: tuple[int, int] = (1080, 1080)
 def main():
     config = parse_args()
     print('Creating pipeline...')
-    pl = pipeline.create_pipeline(config.show_depth)
+    pl = pipeline.create_pipeline()
     print('Saving pipeline to JSON...')
     with open('pipeline.json', 'w') as f:
         json.dump(pl.serializeToJson(), f, indent=2)
     print('Initializing device...')
-    with dai.Device(pipeline.create_pipeline(config.show_depth)) as dev:
+    with dai.Device(pl) as dev:
         device = typing.cast(dai.Device, dev)
         print('Device initialized.')
         run(device, config)
@@ -32,11 +32,12 @@ def main():
 def parse_args() -> utils.Config:
     ap = argparse.ArgumentParser('mirror')
     ap.add_argument('--debug', action='store_true')
+    ap.add_argument('--particles', action='store_true')
+    ap.add_argument('--depth', type=int, default=0)
     ap.add_argument('--screen-rotated', action='store_true')
-    ap.add_argument('--show-depth', action='store_true')
 
     ns = ap.parse_args()
-    return utils.Config(ns.debug, ns.screen_rotated, ns.show_depth)
+    return utils.Config(ns.debug, ns.particles, ns.depth, ns.screen_rotated)
 
 
 def run(device: dai.Device, config: utils.Config):
@@ -45,14 +46,20 @@ def run(device: dai.Device, config: utils.Config):
     device.setLogOutputLevel(dai.LogLevel.INFO)
     queues = [
         'color',
-        'nearest_face'
+        'nearest_face',
+        'depth'
     ]
-    if config.show_depth:
-        queues.append('depth')
     sync = host_sync.HostSync(device, *queues, print_add=False)
-    renderer = Renderer(DISPLAY_SIZE, IMAGE_SIZE, config.screen_rotated, config.debug)
+    renderer = Renderer(display_size=DISPLAY_SIZE,
+                        image_size=IMAGE_SIZE,
+                        screen_rotated=config.screen_rotated,
+                        particles=config.particles,
+                        depth=config.depth,
+                        debug=config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
+
+    stereo_cfg: dai.StereoDepthConfig = typing.cast(dai.StereoDepthConfig, sync.device.getOutputQueue('stereo_cfg').get())
 
     while True:
         time.sleep(0.001)
@@ -63,41 +70,33 @@ def run(device: dai.Device, config: utils.Config):
         #print('Seq', seq, 'lag', sync.get_lag())
 
         color_in: dai.ImgFrame = msgs.get('color', None)
+        depth_in: dai.ImgFrame = msgs.get('depth', None)
         nearest_face_in: dai.NNData = msgs.get('nearest_face', None)
 
         latency = (dai.Clock.now() - color_in.getTimestamp()).total_seconds() * 1000
         latency_buffer[latency_buffer_idx] = latency
         latency_buffer_idx = (latency_buffer_idx + 1) % latency_buffer.size
-        #print('Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(latency, np.average(latency_buffer), np.std(latency_buffer)))
+        print('Seq: {}, Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(seq, latency, np.average(latency_buffer), np.std(latency_buffer)))
 
-        color_frame = color_in.getCvFrame()
-        color = typing.cast(cv2.Mat, color_frame)
+        color = typing.cast(cv2.Mat, color_in.getCvFrame())
+        depth = depth_in.getFrame()
+        #depth = utils.depth_to_cv_frame(depth, stereo_cfg)
 
         bbox_raw = nearest_face_in.getLayerFp16('bbox')
         bbox = None
         if bbox_raw is not None and len(bbox_raw) == 4:
-            rect = dai.Rect(dai.Point2f(1 - bbox_raw[2], bbox_raw[1]),
-                            dai.Point2f(1 - bbox_raw[0], bbox_raw[3]))
+            #rect = dai.Rect(dai.Point2f(1 - bbox_raw[2], bbox_raw[1]),
+            #                dai.Point2f(1 - bbox_raw[0], bbox_raw[3]))
+            rect = dai.Rect(dai.Point2f(bbox_raw[0], bbox_raw[1]),
+                            dai.Point2f(bbox_raw[2], bbox_raw[3]))
             rect = rect.denormalize(color_in.getWidth(), color_in.getHeight())
             bbox = BBox(int(rect.topLeft().x),
                         int(rect.topLeft().y),
                         int(rect.bottomRight().x),
                         int(rect.bottomRight().y))
-        if renderer.render(color, bbox, seq):
+        if renderer.render(color, depth, bbox, seq):
             print('Requested stoppage.')
             break
-        
-        #cv2.imshow('Color', color)
-
-        #if show_depth:
-        #    depth_in: dai.ImgFrame = msgs.get('depth', None)
-        #    stereo_cfg_in: dai.StereoDepthConfig = typing.cast(dai.StereoDepthConfig, sync.device.getOutputQueue('stereo_cfg').get())
-        #    depth = utils.depth_to_cv_frame(depth_in, stereo_cfg_in)
-        #    depth_resized = cv2.resize(depth, DISPLAY_SIZE)
-        #    #cv2.imshow('Depth', depth_resized)
-        
-        #if cv2.waitKey(1) == ord('q'):
-        #    break
 
 
 if __name__ == '__main__':
