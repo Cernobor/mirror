@@ -133,11 +133,6 @@ def create_pipeline() -> dai.Pipeline:
     colorXout.setStreamName('color')
     colorXout.input.setBlocking(False)
     colorXout.input.setQueueSize(1)
-    # Stereo config out
-    stereoCfgXout = pipeline.create(dai.node.XLinkOut)
-    stereoCfgXout.setStreamName('stereo_cfg')
-    stereoCfgXout.input.setBlocking(False)
-    stereoCfgXout.input.setQueueSize(1)
     # Depth out
     depthXout = pipeline.create(dai.node.XLinkOut)
     depthXout.setStreamName('depth')
@@ -166,8 +161,6 @@ def create_pipeline() -> dai.Pipeline:
     stereo.depth.link(depthCropFlip.inputImage)
     # Depth crop -> detections-depth to spatial
     depthCropFlip.out.link(detectionsDepthToSpatial.inputs['depth'])
-    # Stereo config -> stereo config out
-    stereo.outConfig.link(stereoCfgXout.input) # type: ignore
     # Depth crop -> depth out
     depthCropFlip.out.link(depthXout.input) # type: ignore
     # Face detection -> detections-depth to spatial

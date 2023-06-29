@@ -32,12 +32,12 @@ def main():
 def parse_args() -> utils.Config:
     ap = argparse.ArgumentParser('mirror')
     ap.add_argument('--debug', action='store_true')
-    ap.add_argument('--particles', action='store_true')
     ap.add_argument('--depth', type=int, default=0)
+    ap.add_argument('--halo')
     ap.add_argument('--screen-rotated', action='store_true')
 
     ns = ap.parse_args()
-    return utils.Config(ns.debug, ns.particles, ns.depth, ns.screen_rotated)
+    return utils.Config(ns.debug, ns.depth, ns.halo, ns.screen_rotated)
 
 
 def run(device: dai.Device, config: utils.Config):
@@ -53,13 +53,11 @@ def run(device: dai.Device, config: utils.Config):
     renderer = Renderer(display_size=DISPLAY_SIZE,
                         image_size=IMAGE_SIZE,
                         screen_rotated=config.screen_rotated,
-                        particles=config.particles,
                         depth=config.depth,
+                        halo=config.halo,
                         debug=config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
-
-    stereo_cfg: dai.StereoDepthConfig = typing.cast(dai.StereoDepthConfig, sync.device.getOutputQueue('stereo_cfg').get())
 
     while True:
         time.sleep(0.001)
@@ -67,8 +65,6 @@ def run(device: dai.Device, config: utils.Config):
         if msgs is None:
             continue
         
-        #print('Seq', seq, 'lag', sync.get_lag())
-
         color_in: dai.ImgFrame = msgs.get('color', None)
         depth_in: dai.ImgFrame = msgs.get('depth', None)
         nearest_face_in: dai.NNData = msgs.get('nearest_face', None)
@@ -80,13 +76,10 @@ def run(device: dai.Device, config: utils.Config):
 
         color = typing.cast(cv2.Mat, color_in.getCvFrame())
         depth = depth_in.getFrame()
-        #depth = utils.depth_to_cv_frame(depth, stereo_cfg)
-
+        
         bbox_raw = nearest_face_in.getLayerFp16('bbox')
         bbox = None
         if bbox_raw is not None and len(bbox_raw) == 4:
-            #rect = dai.Rect(dai.Point2f(1 - bbox_raw[2], bbox_raw[1]),
-            #                dai.Point2f(1 - bbox_raw[0], bbox_raw[3]))
             rect = dai.Rect(dai.Point2f(bbox_raw[0], bbox_raw[1]),
                             dai.Point2f(bbox_raw[2], bbox_raw[3]))
             rect = rect.denormalize(color_in.getWidth(), color_in.getHeight())

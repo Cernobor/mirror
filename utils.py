@@ -34,6 +34,6 @@ def process_detection(img: dai.ImgFrame, xmin, ymin, xmax, ymax) -> dai.Rect:
 @dataclass
 class Config:
     debug: bool
-    particles: bool
     depth: int
+    halo: str
     screen_rotated: bool
