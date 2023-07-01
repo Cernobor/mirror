@@ -35,6 +35,9 @@ def parse_args() -> utils.Config:
     ap.add_argument('--depth', type=int, default=0)
     ap.add_argument('--halo-common')
     ap.add_argument('--halo-special')
+    ap.add_argument('--background-stars-no', type=int, default=0)
+    ap.add_argument('--common-constellations')
+    ap.add_argument('--special-constellations')
     ap.add_argument('--special-trigger-file')
     ap.add_argument('--final-trigger-file')
     ap.add_argument('--screen-rotated', action='store_true')
@@ -46,6 +49,9 @@ def parse_args() -> utils.Config:
         depth=ns.depth,
         halo_common=ns.halo_common,
         halo_special=ns.halo_special,
+        background_stars_no=ns.background_stars_no,
+        common_constellations=ns.common_constellations,
+        special_constellations=ns.special_constellations,
         special_trigger_file=ns.special_trigger_file,
         final_trigger_file=ns.final_trigger_file
     )
@@ -65,8 +71,11 @@ def run(device: dai.Device, config: utils.Config):
                         image_size=IMAGE_SIZE,
                         screen_rotated=config.screen_rotated,
                         depth=config.depth,
-                        halo_common=config.halo_common,
-                        halo_special=config.halo_special,
+                        halo_common_dir=config.halo_common,
+                        halo_special_dir=config.halo_special,
+                        background_stars_no=config.background_stars_no,
+                        common_constellations_js=config.common_constellations,
+                        special_constellations_js=config.special_constellations,
                         debug=config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0

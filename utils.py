@@ -41,5 +41,8 @@ class Config:
     depth: int
     halo_common: str
     halo_special: str
+    background_stars_no: int
+    common_constellations: str
+    special_constellations: str
     special_trigger_file: str
     final_trigger_file: str

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import os
 import random
 import time
@@ -67,8 +68,11 @@ class Renderer:
                  image_size: Tuple[int, int],
                  screen_rotated: bool,
                  depth: int,
-                 halo_common: str,
-                 halo_special: str,
+                 halo_common_dir: str,
+                 halo_special_dir: str,
+                 background_stars_no: int,
+                 common_constellations_js: str,
+                 special_constellations_js: str,
                  debug: bool=False) -> None:
         self.display_size = display_size
         self.image_size = image_size
@@ -80,8 +84,11 @@ class Renderer:
 
         self.screen_rotated = screen_rotated
         self.depth = depth
-        self.halo_common = halo_common
-        self.halo_special = halo_special
+        self.halo_common_dir = halo_common_dir
+        self.halo_special_dir = halo_special_dir
+        self.background_stars_no = background_stars_no
+        self.common_constellations_js = common_constellations_js
+        self.special_constellations_js = special_constellations_js
         self.debug = debug
 
         self._prepare()
@@ -92,6 +99,7 @@ class Renderer:
         self.is_face = False
         self.bbox = BBox(0, 0, 0, 0)
         self.final_trigger_time = None
+        self.constellation = None
         self.debug_divisor = 2
         self.special = False
         self.final = False
@@ -112,23 +120,32 @@ class Renderer:
             fs = 0
 
             size = (self.display_size[1] // self.debug_divisor, self.vertical_diff // self.debug_divisor)
-            dim = min(size)
-            self.indicator_offset = ((max(size) - dim) // 2, min(size) - dim)
+            v = min(size) // 2
+            h = max(size)
+            indicator_size = (v, v)
+            self.indicator_offset_l = (0, 0)
+            self.indicator_offset_r = (h - v, 0)
         elif not self.screen_rotated:
             ds = tuple(reversed(ds))
 
             size = (self.vertical_diff, self.display_size[1])
-            dim = min(size)
-            self.indicator_offset = (min(size) - dim, (max(size) - dim) // 2)
+            v = min(size) // 2
+            h = max(size)
+            indicator_size = (v, v)
+            self.indicator_offset_l = (0, 0)
+            self.indicator_offset_r = (0, h - v)
         else:
             size = (self.display_size[1], self.vertical_diff)
-            dim = min(size)
-            self.indicator_offset = ((max(size) - dim) // 2, min(size) - dim)
+            v = min(size) // 2
+            h = max(size)
+            indicator_size = (v, v)
+            self.indicator_offset_l = (0, 0)
+            self.indicator_offset_r = (h - v, 0)
         self.pg_screen = pygame.display.set_mode(size=ds, flags=fs)
-        self.pg_indicator = pygame.Surface((dim, dim))
+        self.pg_indicator = pygame.Surface(indicator_size)
         self.rng = np.random.default_rng()
 
-        # setup stars in indicator
+        # setup star types
         self.stars = dict()
         for size in [s for s in range(2, 50)]:
             coord_vec = np.linspace(-1, 1, size)
@@ -143,8 +160,10 @@ class Renderer:
                 'data': color,
                 'center_offset': (-size // 2, -size // 2)
             }
+        
+        # setup background stars
         self.background_stars = []
-        for _ in range(250):
+        for _ in range(self.background_stars_no):
             stars = [self.stars[s] for s in range(4, 8)]
             mult_range = (0.4, 0.7)
             mult_speed = 0.15 * (mult_range[1] - mult_range[0]) * (2 * random.random() - 1)
@@ -154,44 +173,51 @@ class Renderer:
                 'star': random.choice(stars),
                 'mult': mult,
                 'mult_range': mult_range,
-                'mult_speed': mult_speed,
-                'background': True
+                'mult_speed': mult_speed
             }
             self.background_stars.append(star)
-        t = np.linspace(0, 1, 30) ** 1
-        r_in = 0.5 * 0.2
-        r_out = 0.5 * 0.75
-        rots = 5.0
-        v = r_out - r_in
-        x = (v * t + r_in) * np.cos(2 * np.pi * rots * t) + 0.5
-        y = (v * t + r_in) * np.sin(2 * np.pi * rots * t) + 0.5
-        foreground_star_coords = np.stack((x, y), axis=-1)
-        #print(foreground_star_coords)
-        for c in foreground_star_coords:
-            stars = [self.stars[s] for s in range(12, 25)]
-            mult_range = (0.9, 1)
-            mult_speed = 0.15 * (mult_range[1] - mult_range[0]) * (2 * random.random() - 1)
-            mult = (mult_range[1] - mult_range[0]) * random.random() + mult_range[0]
-            self.background_stars.append({
-                'coords': c,
-                'star': random.choice(stars),
-                'mult': mult,
-                'mult_range': mult_range,
-                'mult_speed': mult_speed,
-                'background': False
-            })
+        
+        # setup common constellations
+        self.common_constellations = []
+        with open(self.common_constellations_js) as f:
+            common_constellations = json.load(f)
+        for v in common_constellations.values():
+            c = []
+            for p in v:
+                s = p['mag'] * 2 + 10
+                star = {
+                    'coords': (p['x'], p['y']),
+                    'star': self.stars[s]
+                }
+                c.append(star)
+            self.common_constellations.append(c)
+        
+        # setup special constellations
+        self.special_constellations = []
+        with open(self.special_constellations_js) as f:
+            special_constellations = json.load(f)
+        for v in special_constellations.values():
+            c = []
+            for p in v:
+                s = p['mag'] * 2 + 10
+                star = {
+                    'coords': (p['x'], p['y']),
+                    'star': self.stars[s]
+                }
+                c.append(star)
+            self.special_constellations.append(c)
         
         # setup mirror halo
         self.halo_common_imgs = []
-        if self.halo_common:
-            files = os.listdir(self.halo_common)
+        if self.halo_common_dir:
+            files = os.listdir(self.halo_common_dir)
             files.sort()
-            self.halo_common_imgs = [os.path.join(self.halo_common, f) for f in files]
+            self.halo_common_imgs = [os.path.join(self.halo_common_dir, f) for f in files]
         self.halo_special_imgs = []
-        if self.halo_special:
-            files = os.listdir(self.halo_special)
+        if self.halo_special_dir:
+            files = os.listdir(self.halo_special_dir)
             files.sort()
-            self.halo_special_imgs = [os.path.join(self.halo_special, f) for f in files]
+            self.halo_special_imgs = [os.path.join(self.halo_special_dir, f) for f in files]
 
         # save start time
         self.time = time.time()
@@ -243,11 +269,11 @@ class Renderer:
             pg_face.blit(scaled, top_left)
 
         if self.debug:
-            self.pg_screen.blit(pg_face, (0, self.vertical_diff // self.debug_divisor))
+            self.pg_screen.blit(pg_face, (0, self.vertical_diff // 2 // self.debug_divisor))
         elif not self.screen_rotated:
-            self.pg_screen.blit(pg_face, (self.vertical_diff, 0))
+            self.pg_screen.blit(pg_face, (self.vertical_diff // 2, 0))
         else:
-            self.pg_screen.blit(pg_face, (0, self.vertical_diff))
+            self.pg_screen.blit(pg_face, (0, self.vertical_diff // 2))
     
     def render_indicator(self, seq: int):
         self.pg_indicator.fill((0, 0, 0))
@@ -255,29 +281,46 @@ class Renderer:
         coef = self.effect_coef(2)
         
         size = self.pg_indicator.get_size()
-        for bs in self.background_stars:
-            s = bs['star']
+        for star in self.background_stars:
+            s = star['star']
             d = s['data']
-            coords = self.switch_coords(bs['coords'])
+            coords = self.switch_coords(star['coords'])
             coords = (
                 int(coords[0] * size[0]) + s['center_offset'][0],
                 int(coords[1] * size[1]) + s['center_offset'][1]
             )
 
-            m = bs['mult']
-            mr = bs['mult_range']
-            ms = bs['mult_speed']
-            bs['mult'] = min(max(m + ms, mr[0]), mr[1])
-            bs['mult_speed'] += 0.15 * (mr[1] - mr[0]) * (2 * random.random() - 1)
-            if not bs['background']:
-                m *= coef
+            m = star['mult']
+            mr = star['mult_range']
+            ms = star['mult_speed']
+            star['mult'] = min(max(m + ms, mr[0]), mr[1])
+            star['mult_speed'] += 0.15 * (mr[1] - mr[0]) * (2 * random.random() - 1)
+            #if not bs['background']:
+            #    m *= coef
             if int(255 * m) < 1:
                 continue
 
             surf = pygame.surfarray.make_surface(d * m)
             self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
+        
+        if self.final and self.constellation is not None:
+            for star in self.constellation:
+                s = star['star']
+                d = s['data']
+                coords = self.switch_coords(star['coords'])
+                coords = (
+                    int(coords[0] * size[0]) + s['center_offset'][0],
+                    int(coords[1] * size[1]) + s['center_offset'][1]
+                )
 
-        self.pg_screen.blit(self.pg_indicator, self.indicator_offset)
+                if int(255 * coef) < 1:
+                    continue
+
+                surf = pygame.surfarray.make_surface(d * coef)
+                self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
+
+        self.pg_screen.blit(self.pg_indicator, self.indicator_offset_l)
+        self.pg_screen.blit(self.pg_indicator, self.indicator_offset_r)
     
     def render(self, color: cv2.Mat, depth: cv2.Mat, face_bbox: Optional[BBox], seq: int) -> bool:
         """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
@@ -295,6 +338,10 @@ class Renderer:
             self.is_face = True
             if self.final and self.final_trigger_time is None:
                 self.final_trigger_time = time.time()
+                if self.special:
+                    self.constellation = random.choice(self.special_constellations)
+                else:
+                    self.constellation = random.choice(self.common_constellations)
             
             tl = face_bbox.top_left()
             br = face_bbox.bottom_right()
