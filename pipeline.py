@@ -4,7 +4,7 @@ import blobconverter
 
 def create_pipeline() -> dai.Pipeline:
     pipeline = dai.Pipeline()
-    fps = 20
+    fps = 25
 
     # Nodes
 
@@ -15,6 +15,7 @@ def create_pipeline() -> dai.Pipeline:
     color.setVideoSize(1080, 1080)
     color.setInterleaved(False)
     color.setFps(fps)
+    color.setWaitForConfigInput(False)
 
     # Preview flip
     previewFlip = pipeline.create(dai.node.ImageManip)

@@ -30,10 +30,16 @@ def process_detection(img: dai.ImgFrame, xmin, ymin, xmax, ymax) -> dai.Rect:
     return dai.Rect(dai.Point2f(img.getWidth() - xmax, ymin),
                     dai.Point2f(img.getWidth() - xmin, ymax))
 
+def conv_comb(a, b, fac_a):
+    return fac_a * a + (1 - fac_a) * b
+
 
 @dataclass
 class Config:
     debug: bool
-    depth: int
-    halo: str
     screen_rotated: bool
+    depth: int
+    halo_common: str
+    halo_special: str
+    special_trigger_file: str
+    final_trigger_file: str

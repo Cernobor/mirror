@@ -6,7 +6,7 @@ from typing import Optional, Tuple, TypeVar
 import cv2
 import pygame
 import numpy as np
-from particlepy import particlepy
+import utils
 
 T = TypeVar('T')
 
@@ -67,7 +67,8 @@ class Renderer:
                  image_size: Tuple[int, int],
                  screen_rotated: bool,
                  depth: int,
-                 halo: str,
+                 halo_common: str,
+                 halo_special: str,
                  debug: bool=False) -> None:
         self.display_size = display_size
         self.image_size = image_size
@@ -79,7 +80,8 @@ class Renderer:
 
         self.screen_rotated = screen_rotated
         self.depth = depth
-        self.halo = halo
+        self.halo_common = halo_common
+        self.halo_special = halo_special
         self.debug = debug
 
         self._prepare()
@@ -89,9 +91,12 @@ class Renderer:
         pygame.init()
         self.is_face = False
         self.bbox = BBox(0, 0, 0, 0)
-        self.first_true_seq = -1
-        self.last_true_seq = -1
+        self.final_trigger_time = None
         self.debug_divisor = 2
+        self.special = False
+        self.final = False
+        self.halo_factor = None
+        self.halo_center = None
         
         # setup display sizes and orientations
         self.horizontal_idx = 1
@@ -121,13 +126,8 @@ class Renderer:
             self.indicator_offset = ((max(size) - dim) // 2, min(size) - dim)
         self.pg_screen = pygame.display.set_mode(size=ds, flags=fs)
         self.pg_indicator = pygame.Surface((dim, dim))
-        self.psys = particlepy.particle.ParticleSystem()
         self.rng = np.random.default_rng()
 
-        self.max_thickness = 10
-        if self.debug:
-            self.max_thickness = self.max_thickness // self.debug_divisor
-        
         # setup stars in indicator
         self.stars = dict()
         for size in [s for s in range(2, 50)]:
@@ -182,11 +182,16 @@ class Renderer:
             })
         
         # setup mirror halo
-        self.halo_imgs = []
-        if self.halo:
-            files = os.listdir(self.halo)
+        self.halo_common_imgs = []
+        if self.halo_common:
+            files = os.listdir(self.halo_common)
             files.sort()
-            self.halo_imgs = [os.path.join(self.halo, f) for f in files]
+            self.halo_common_imgs = [os.path.join(self.halo_common, f) for f in files]
+        self.halo_special_imgs = []
+        if self.halo_special:
+            files = os.listdir(self.halo_special)
+            files.sort()
+            self.halo_special_imgs = [os.path.join(self.halo_special, f) for f in files]
 
         # save start time
         self.time = time.time()
@@ -195,12 +200,8 @@ class Renderer:
         if self.depth > 0:
             color[np.logical_or(depth > self.depth, depth < 350), :] = 0
         
-        coef = self.face_coef(seq, 24, 48)
-        
-        if self.debug:
-            it = int(self.max_thickness * coef)
-            if it > 0:
-                cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), it)
+        if self.debug and self.is_face:
+            cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), 1)
 
         cv2.flip(color, 1, color)
         if self.debug or self.screen_rotated:
@@ -208,21 +209,36 @@ class Renderer:
         
         pg_face = pygame.surfarray.make_surface(cv2.cvtColor(color, cv2.COLOR_BGR2RGB))
         
-        if self.is_face and self.halo_imgs:
-            img = pygame.image.load(self.halo_imgs[seq % len(self.halo_imgs)]).convert_alpha()
+        if self.special and self.halo_special_imgs:
+            imgs = self.halo_special_imgs
+        elif not self.special and self.halo_common_imgs:
+            imgs = self.halo_common_imgs
+        else:
+            imgs = []
+        coef = self.effect_coef(2)
+        if coef > 0 and imgs:
+            img = pygame.image.load(imgs[seq % len(imgs)]).convert_alpha()
             size = img.get_size()
             img_h = size[1]
             bbox_h = self.bbox.size()[self.vertical_idx]
             factor = bbox_h / img_h * 2.5
-            scaled = pygame.transform.smoothscale_by(img, factor)
+            if self.halo_factor is not None:
+                self.halo_factor = utils.conv_comb(factor, self.halo_factor, 0.5)
+            else:
+                self.halo_factor = factor
+            scaled = pygame.transform.smoothscale_by(img, self.halo_factor)
             
             if self.debug or self.screen_rotated:
                 center = (self.bbox.x_bounds().center(), self.bbox.y_bounds().center())
             else:
                 center = (self.bbox.x_bounds(flip=True, offset=self.image_size[0]).center(), self.bbox.y_bounds().center())
+            if self.halo_center is not None:
+                self.halo_center = (utils.conv_comb(center[0], self.halo_center[0], 0.75), utils.conv_comb(center[1], self.halo_center[1], 0.75))
+            else:
+                self.halo_center = center
             
-            top_left = (center[self.horizontal_idx] - scaled.get_width() // 2,
-                        center[self.vertical_idx] - scaled.get_height() // 2)
+            top_left = (self.halo_center[self.horizontal_idx] - scaled.get_width() // 2,
+                        self.halo_center[self.vertical_idx] - scaled.get_height() // 2)
             scaled.set_alpha(255 * coef)
             pg_face.blit(scaled, top_left)
 
@@ -236,7 +252,7 @@ class Renderer:
     def render_indicator(self, seq: int):
         self.pg_indicator.fill((0, 0, 0))
 
-        coef = self.face_coef(seq, delay_in_time=24, fade_time=48)
+        coef = self.effect_coef(2)
         
         size = self.pg_indicator.get_size()
         for bs in self.background_stars:
@@ -277,9 +293,8 @@ class Renderer:
         
         if face_bbox is not None:
             self.is_face = True
-            self.last_true_seq = seq
-            if self.first_true_seq == -1:
-                self.first_true_seq = seq
+            if self.final and self.final_trigger_time is None:
+                self.final_trigger_time = time.time()
             
             tl = face_bbox.top_left()
             br = face_bbox.bottom_right()
@@ -288,7 +303,7 @@ class Renderer:
                 self.bbox = BBox(self.bbox.x0 // self.debug_divisor, self.bbox.y0 // self.debug_divisor, self.bbox.x1 // self.debug_divisor, self.bbox.y1 // self.debug_divisor)
         else:
             self.is_face = False
-            self.first_true_seq = -1
+            self.final_trigger_time = None
         
         self.render_face(color, depth, seq)
         self.render_indicator(seq)
@@ -301,14 +316,11 @@ class Renderer:
                 return True
         return False
 
-    def face_coef(self, seq: int, delay_in_time: int, fade_time: int) -> float:
-        if self.is_face:
-            t = seq - self.first_true_seq
-            coef = max(min((t - delay_in_time) / fade_time, 1), 0)
-        else:
-            t = seq - self.last_true_seq
-            coef = -min(t / fade_time - 1, 0)
-        return coef
+    def effect_coef(self, fade_in_time: float) -> float:
+        if self.final_trigger_time is not None:
+            t = time.time() - self.final_trigger_time
+            return max(min(t - fade_in_time, 1), 0)
+        return 0
     
     def switch_coords(self, c: Tuple[int, int]) -> Tuple[int, int]:
         if not self.debug:

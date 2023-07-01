@@ -33,11 +33,22 @@ def parse_args() -> utils.Config:
     ap = argparse.ArgumentParser('mirror')
     ap.add_argument('--debug', action='store_true')
     ap.add_argument('--depth', type=int, default=0)
-    ap.add_argument('--halo')
+    ap.add_argument('--halo-common')
+    ap.add_argument('--halo-special')
+    ap.add_argument('--special-trigger-file')
+    ap.add_argument('--final-trigger-file')
     ap.add_argument('--screen-rotated', action='store_true')
 
     ns = ap.parse_args()
-    return utils.Config(ns.debug, ns.depth, ns.halo, ns.screen_rotated)
+    return utils.Config(
+        debug=ns.debug,
+        screen_rotated=ns.screen_rotated,
+        depth=ns.depth,
+        halo_common=ns.halo_common,
+        halo_special=ns.halo_special,
+        special_trigger_file=ns.special_trigger_file,
+        final_trigger_file=ns.final_trigger_file
+    )
 
 
 def run(device: dai.Device, config: utils.Config):
@@ -54,7 +65,8 @@ def run(device: dai.Device, config: utils.Config):
                         image_size=IMAGE_SIZE,
                         screen_rotated=config.screen_rotated,
                         depth=config.depth,
-                        halo=config.halo,
+                        halo_common=config.halo_common,
+                        halo_special=config.halo_special,
                         debug=config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
@@ -90,6 +102,13 @@ def run(device: dai.Device, config: utils.Config):
         if renderer.render(color, depth, bbox, seq):
             print('Requested stoppage.')
             break
+
+        with open(config.special_trigger_file) as f:
+            content = f.read().strip()
+            renderer.special = content == '1'
+        with open(config.final_trigger_file) as f:
+            content = f.read().strip()
+            renderer.final = content == '1'
 
 
 if __name__ == '__main__':
