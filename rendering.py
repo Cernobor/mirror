@@ -223,17 +223,25 @@ class Renderer:
         self.time = time.time()
     
     def render_face(self, color: cv2.Mat, depth: cv2.Mat, seq: int):
-        if self.depth > 0:
-            color[np.logical_or(depth > self.depth, depth < 350), :] = 0
-        
         if self.debug and self.is_face:
             cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), 1)
+        
+        bg_mask = None
+        if self.depth > 0:
+            bg_mask = np.logical_or(depth > self.depth, depth < 350)
 
+        color = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
         cv2.flip(color, 1, color)
         if self.debug or self.screen_rotated:
             color = np.rot90(color)
+        if bg_mask is not None:
+            if self.debug or self.screen_rotated:
+                bg_mask = np.transpose(bg_mask)
+            else:
+                bg_mask = np.flip(bg_mask, 1)
+
         
-        pg_face = pygame.surfarray.make_surface(cv2.cvtColor(color, cv2.COLOR_BGR2RGB))
+        pg_face = pygame.surfarray.make_surface(color)
         
         if self.special and self.halo_special_imgs:
             imgs = self.halo_special_imgs
@@ -267,6 +275,14 @@ class Renderer:
                         self.halo_center[self.vertical_idx] - scaled.get_height() // 2)
             scaled.set_alpha(255 * coef)
             pg_face.blit(scaled, top_left)
+        
+        if bg_mask is not None:
+            pg_face_fg = pygame.Surface(color.shape[:2], pygame.SRCALPHA, 32)
+            pygame.pixelcopy.array_to_surface(pg_face_fg, color)
+            alpha = np.array(pg_face_fg.get_view('A'), copy=False)
+            alpha[bg_mask] = 0
+            del alpha
+            pg_face.blit(pg_face_fg, (0, 0))
 
         if self.debug:
             self.pg_screen.blit(pg_face, (0, self.vertical_diff // 2 // self.debug_divisor))
