@@ -3,6 +3,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import math
+from typing import Optional
 
 BASELINE = 75
 FOV = 73
@@ -44,5 +45,7 @@ class Config:
     background_stars_no: int
     common_constellations: str
     special_constellations: str
-    special_trigger_file: str
-    final_trigger_file: str
+    special_trigger_file: Optional[str]
+    final_trigger_file: Optional[str]
+    special_trigger_pin: Optional[int]
+    final_trigger_pin: Optional[int]

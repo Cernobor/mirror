@@ -2,6 +2,7 @@ import json
 import typing
 import time
 import argparse
+import sys
 
 import numpy as np
 import depthai as dai
@@ -31,19 +32,36 @@ def main():
 
 def parse_args() -> utils.Config:
     ap = argparse.ArgumentParser('mirror')
-    ap.add_argument('--debug', action='store_true')
-    ap.add_argument('--depth', type=int, default=0)
-    ap.add_argument('--halo-common')
-    ap.add_argument('--halo-special')
-    ap.add_argument('--background-stars-no', type=int, default=0)
-    ap.add_argument('--common-constellations')
-    ap.add_argument('--special-constellations')
-    ap.add_argument('--special-trigger-file')
-    ap.add_argument('--final-trigger-file')
-    ap.add_argument('--screen-rotated', action='store_true')
+    ap.add_argument('--debug', action='store_true', help='If specified, mirror is rendered in non-fullscreen, smaller window.')
+    ap.add_argument('--depth', type=int, default=0, help='Cutoff depth between foreground (person) and background.')
+    ap.add_argument('--halo-common', help='Path to a directory containing images of the common halo animation.')
+    ap.add_argument('--halo-special', help='Path to a directory containing images of the special halo animation.')
+    ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
+    ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
+    ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
+    ap.add_argument('--trigger-files', nargs=2, help='Paths to files that will be read for special and final trigger respectively.')
+    ap.add_argument('--trigger-gpios', type=int, nargs=2, help='Pin numbers that will be checked (pullup, trigger on LOW) for special and final trigger respectively.')
+    ap.add_argument('--screen-rotated', action='store_true', help='Tells the program that the display is already rotated by the system.')
 
     ns = ap.parse_args()
-    return utils.Config(
+    print(ns)
+    if ns.trigger_files is None and ns.trigger_gpios is None or ns.trigger_files is not None and ns.trigger_gpios is not None:
+        ap.print_usage(file=sys.stderr)
+        print(f'{sys.argv[0]}: error: exactly one of --trigger-files and --trigger-gpios must be specified')
+        sys.exit(1)
+    elif ns.trigger_files is not None:
+        stf = ns.trigger_files[0]
+        ftf = ns.trigger_files[1]
+        stp = None
+        ftp = None
+    elif ns.trigger_gpios is not None:
+        stf = None
+        ftf = None
+        stp = ns.trigger_gpios[0]
+        ftp = ns.trigger_gpios[1]
+    else:
+        raise ValueError('Illegal state.')
+    cfg = utils.Config(
         debug=ns.debug,
         screen_rotated=ns.screen_rotated,
         depth=ns.depth,
@@ -52,13 +70,36 @@ def parse_args() -> utils.Config:
         background_stars_no=ns.background_stars_no,
         common_constellations=ns.common_constellations,
         special_constellations=ns.special_constellations,
-        special_trigger_file=ns.special_trigger_file,
-        final_trigger_file=ns.final_trigger_file
+        special_trigger_file=stf,
+        final_trigger_file=ftf,
+        special_trigger_pin=stp,
+        final_trigger_pin=ftp
     )
 
 
 def run(device: dai.Device, config: utils.Config):
     print(device.getUsbSpeed())
+
+    if config.special_trigger_file is not None and config.final_trigger_file is not None:
+        trigger_mode = 'file'
+    elif config.special_trigger_pin is not None and config.final_trigger_pin is not None:
+        trigger_mode = 'gpio'
+    else:
+        raise ValueError('Illegal state.')
+    print(f'Trigger mode: {trigger_mode}')
+    if trigger_mode == 'gpio':
+        import gpiod
+        chip = gpiod.Chip('gpiochip3')
+        line_mapping = {
+            46: 19,
+            45: 22,
+            44: 25,
+            43: 18,
+            42: 21
+        }
+        lines_special_final = chip.get_lines([line_mapping[config.special_trigger_pin], line_mapping[config.final_trigger_pin]])
+        lines_special_final.request('mirror', type=gpiod.LINE_REQ_DIR_IN, flag=gpiod.LINE_REQ_FLAG_BIAS_PULL_UP)
+
     device.setLogLevel(dai.LogLevel.INFO)
     device.setLogOutputLevel(dai.LogLevel.INFO)
     queues = [
@@ -112,12 +153,19 @@ def run(device: dai.Device, config: utils.Config):
             print('Requested stoppage.')
             break
 
-        with open(config.special_trigger_file) as f:
-            content = f.read().strip()
-            renderer.special = content == '1'
-        with open(config.final_trigger_file) as f:
-            content = f.read().strip()
-            renderer.final = content == '1'
+        if trigger_mode == 'file':
+            with open(config.special_trigger_file) as f:
+                content = f.read().strip()
+                renderer.special = content == '1'
+            with open(config.final_trigger_file) as f:
+                content = f.read().strip()
+                renderer.final = content == '1'
+        elif trigger_mode == 'gpio':
+            special, final = lines_special_final.get_values()
+            renderer.special = special == 0
+            renderer.final = final == 0
+        else:
+            raise ValueError('Illegal trigger_mode')
 
 
 if __name__ == '__main__':

@@ -1,8 +1,8 @@
-opencv-python
-depthai
-numpy
-blobconverter
-pygame
+opencv-python==4.7.0.72
+depthai==2.22.0.0
+numpy==1.24.3
+blobconverter==1.4.1
+pygame==2.4.0
 # for pipeline visualisation
 #git+https://github.com/geaxgx/depthai_pipeline_graph.git
 #PySide2
