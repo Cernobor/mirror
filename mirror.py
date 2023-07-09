@@ -89,7 +89,7 @@ def run(device: dai.Device, config: utils.Config):
     print(f'Trigger mode: {trigger_mode}')
     if trigger_mode == 'gpio':
         import gpiod
-        chip = gpiod.Chip('gpiochip3')
+        chip = gpiod.chip(3)
         line_mapping = {
             46: 19,
             45: 22,
@@ -98,7 +98,12 @@ def run(device: dai.Device, config: utils.Config):
             42: 21
         }
         lines_special_final = chip.get_lines([line_mapping[config.special_trigger_pin], line_mapping[config.final_trigger_pin]])
-        lines_special_final.request('mirror', type=gpiod.LINE_REQ_DIR_IN, flag=gpiod.LINE_REQ_FLAG_BIAS_PULL_UP)
+        line_config = gpiod.line_request()
+        line_config.consumer = 'mirror'
+        cfg.request_type = gpiod.line_request.DIRECTION_INPUT
+        cfg.flags = gpiod.line_request.FLAG_BIAS_PULL_UP
+        lines_special_final.request(cfg)
+        print('Configured trigger GPIOs.')
 
     device.setLogLevel(dai.LogLevel.INFO)
     device.setLogOutputLevel(dai.LogLevel.INFO)
@@ -166,6 +171,9 @@ def run(device: dai.Device, config: utils.Config):
             renderer.final = final == 0
         else:
             raise ValueError('Illegal trigger_mode')
+    
+    if trigger_mode == 'gpio':
+        lines_special_final.release()
 
 
 if __name__ == '__main__':
