@@ -61,7 +61,7 @@ def parse_args() -> utils.Config:
         ftp = ns.trigger_gpios[1]
     else:
         raise ValueError('Illegal state.')
-    cfg = utils.Config(
+    return utils.Config(
         debug=ns.debug,
         screen_rotated=ns.screen_rotated,
         depth=ns.depth,
