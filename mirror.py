@@ -100,9 +100,9 @@ def run(device: dai.Device, config: utils.Config):
         lines_special_final = chip.get_lines([line_mapping[config.special_trigger_pin], line_mapping[config.final_trigger_pin]])
         line_config = gpiod.line_request()
         line_config.consumer = 'mirror'
-        cfg.request_type = gpiod.line_request.DIRECTION_INPUT
-        cfg.flags = gpiod.line_request.FLAG_BIAS_PULL_UP
-        lines_special_final.request(cfg)
+        line_config.request_type = gpiod.line_request.DIRECTION_INPUT
+        line_config.flags = gpiod.line_request.FLAG_BIAS_PULL_UP
+        lines_special_final.request(line_config)
         print('Configured trigger GPIOs.')
 
     device.setLogLevel(dai.LogLevel.INFO)
