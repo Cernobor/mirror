@@ -38,6 +38,7 @@ def parse_args() -> utils.Config:
     ap.add_argument('--depth', type=int, default=0, help='Cutoff depth between foreground (person) and background.')
     ap.add_argument('--halo-common', help='Path to a directory containing images of the common halo animation.')
     ap.add_argument('--halo-special', help='Path to a directory containing images of the special halo animation.')
+    ap.add_argument('--halo-position-mixing-coef', type=float, default=1, help='Mixing coefficient for halo position. Must be in the range [0, 1].')
     ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
     ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
     ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
@@ -65,12 +66,17 @@ def parse_args() -> utils.Config:
         ftp = ns.trigger_gpios[1]
     else:
         raise ValueError('Illegal state.')
+    if ns.halo_position_mixing_coef < 0 or ns.halo_position_mixing_coef > 1:
+        ap.print_usage(file=sys.stderr)
+        print(f'{sys.argv[0]}: error: --halo-position-mixing-coef must be in the range [0, 1]')
+        sys.exit(1)
     return utils.Config(
         debug=ns.debug,
         screen_rotated=ns.screen_rotated,
         depth=ns.depth,
         halo_common=ns.halo_common,
         halo_special=ns.halo_special,
+        halo_position_mixing_coef=ns.halo_position_mixing_coef,
         background_stars_no=ns.background_stars_no,
         common_constellations=ns.common_constellations,
         special_constellations=ns.special_constellations,
@@ -126,12 +132,16 @@ def run(device: dai.Device, config: utils.Config):
                         depth=config.depth,
                         halo_common_dir=config.halo_common,
                         halo_special_dir=config.halo_special,
+                        halo_position_mixing_coef=config.halo_position_mixing_coef,
                         background_stars_no=config.background_stars_no,
                         common_constellations_js=config.common_constellations,
                         special_constellations_js=config.special_constellations,
                         debug=config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
+    fps_buffer = np.zeros((50,), dtype=np.float32)
+    fps_buffer_idx = 0
+    last_frame_time = time.time()
 
     while True:
         time.sleep(0.001)
@@ -147,6 +157,12 @@ def run(device: dai.Device, config: utils.Config):
         latency_buffer[latency_buffer_idx] = latency
         latency_buffer_idx = (latency_buffer_idx + 1) % latency_buffer.size
         print('Seq: {}, Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(seq, latency, np.average(latency_buffer), np.std(latency_buffer)))
+        t = time.time()
+        fps = 1 / (t - last_frame_time)
+        last_frame_time = t
+        fps_buffer[fps_buffer_idx] = fps
+        fps_buffer_idx = (fps_buffer_idx + 1) % fps_buffer.size
+        print('Seq: {}, FPS: {:.2f}, Average FPS: {:.2f}, Std: {:.2f}'.format(seq, fps, np.average(fps_buffer), np.std(fps_buffer)))
 
         color = typing.cast(cv2.Mat, color_in.getCvFrame())
         depth = depth_in.getFrame()

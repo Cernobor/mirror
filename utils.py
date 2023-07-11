@@ -49,6 +49,7 @@ class Config:
     depth: int
     halo_common: str
     halo_special: str
+    halo_position_mixing_coef: float
     background_stars_no: int
     common_constellations: str
     special_constellations: str

@@ -71,6 +71,7 @@ class Renderer:
                  depth: int,
                  halo_common_dir: str,
                  halo_special_dir: str,
+                 halo_position_mixing_coef: float,
                  background_stars_no: int,
                  common_constellations_js: str,
                  special_constellations_js: str,
@@ -82,6 +83,7 @@ class Renderer:
         self.depth = depth
         self.halo_common_dir = halo_common_dir
         self.halo_special_dir = halo_special_dir
+        self.halo_position_mixing_coef = halo_position_mixing_coef
         self.background_stars_no = background_stars_no
         self.common_constellations_js = common_constellations_js
         self.special_constellations_js = special_constellations_js
@@ -269,7 +271,8 @@ class Renderer:
             else:
                 center = (self.bbox.x_bounds(flip=True, offset=pg_face.get_size()[0]).center(), self.bbox.y_bounds().center())
             if self.halo_center is not None:
-                self.halo_center = (utils.conv_comb(center[0], self.halo_center[0], 0.75), utils.conv_comb(center[1], self.halo_center[1], 0.75))
+                self.halo_center = (utils.conv_comb(center[0], self.halo_center[0], self.halo_position_mixing_coef),
+                                    utils.conv_comb(center[1], self.halo_center[1], self.halo_position_mixing_coef))
             else:
                 self.halo_center = center
             
@@ -354,7 +357,6 @@ class Renderer:
         Renders the final image.
         
         Returns True when user wants to terminate."""
-        print('A', self.image_size, color.shape, depth.shape, face_bbox)
         if color.shape[:2] != depth.shape[:2]:
             #print(color.shape, depth.shape)
             depth = cv2.resize(depth, color.shape[:2])
@@ -366,7 +368,6 @@ class Renderer:
                                  face_bbox.y1 * self.image_size[0] // color.shape[1])
             color = cv2.resize(color, (self.image_size[1], self.image_size[0]))
             depth = cv2.resize(depth, (self.image_size[1], self.image_size[0]))
-        print('B', self.image_size, color.shape, depth.shape, face_bbox)
         
         if face_bbox is not None:
             self.is_face = True
@@ -383,7 +384,6 @@ class Renderer:
         else:
             self.is_face = False
             self.final_trigger_time = None
-        print('C', self.image_size, color.shape, depth.shape, self.bbox)
         
         self.render_face(color, depth, seq)
         self.render_indicator(seq)
