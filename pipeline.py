@@ -1,8 +1,11 @@
+from typing import Tuple
 import depthai as dai
 import blobconverter
 
+from utils import scale
 
-def create_pipeline() -> dai.Pipeline:
+
+def create_pipeline(unscaled_video_size: Tuple[int, int], isp_scale: Tuple[int, int]) -> dai.Pipeline:
     pipeline = dai.Pipeline()
     fps = 25
 
@@ -12,7 +15,8 @@ def create_pipeline() -> dai.Pipeline:
     color = pipeline.create(dai.node.ColorCamera)
     color.setPreviewSize(300, 300)
     color.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
-    color.setVideoSize(1080, 1080)
+    color.setVideoSize(scale(unscaled_video_size, *isp_scale))
+    color.setIspScale(isp_scale)
     color.setInterleaved(False)
     color.setFps(fps)
     color.setWaitForConfigInput(False)

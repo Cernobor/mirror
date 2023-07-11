@@ -3,7 +3,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import math
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 BASELINE = 75
 FOV = 73
@@ -35,6 +35,13 @@ def conv_comb(a, b, fac_a):
     return fac_a * a + (1 - fac_a) * b
 
 
+def scale(value: Union[int, Tuple[int, ...]], numerator: int, denominator: int) -> int:
+    if isinstance(value, tuple):
+        return tuple((v * numerator) // denominator for v in value)
+    else:
+        return (value * numerator) // denominator
+
+
 @dataclass
 class Config:
     debug: bool
@@ -49,3 +56,5 @@ class Config:
     final_trigger_file: Optional[str]
     special_trigger_pin: Optional[int]
     final_trigger_pin: Optional[int]
+    global_res_scale: Tuple[int, int]
+    video_res_scale: Tuple[int, int]

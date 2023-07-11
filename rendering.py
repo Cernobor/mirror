@@ -66,6 +66,7 @@ class Renderer:
     def __init__(self,
                  display_size: Tuple[int, int],
                  image_size: Tuple[int, int],
+                 global_upscale: Tuple[int, int],
                  screen_rotated: bool,
                  depth: int,
                  halo_common_dir: str,
@@ -76,12 +77,7 @@ class Renderer:
                  debug: bool=False) -> None:
         self.display_size = display_size
         self.image_size = image_size
-        print('display_size', display_size)
-        print('image_size', image_size)
-        self.vertical_diff = self.display_size[0] - self.image_size[0]
-        self.horizontal_diff = self.display_size[1] - self.image_size[1]
-        print('{vertical,horizontal}_diff', self.vertical_diff, self.horizontal_diff)
-
+        self.global_upscale = global_upscale
         self.screen_rotated = screen_rotated
         self.depth = depth
         self.halo_common_dir = halo_common_dir
@@ -113,35 +109,41 @@ class Renderer:
             self.horizontal_idx = 0
             self.vertical_idx = 1
 
-        ds = self.display_size
+        full_ds = self.display_size
+        canvas_size = utils.scale(full_ds, *reversed(self.global_upscale))
+        cs = canvas_size
+        self.vertical_diff = canvas_size[0] - self.image_size[0]
+        self.horizontal_diff = canvas_size[1] - self.image_size[1]
         fs = pygame.FULLSCREEN
         if self.debug:
-            ds = (self.display_size[1] // self.debug_divisor, self.display_size[0] // self.debug_divisor)
+            cs = (canvas_size[1] // self.debug_divisor, canvas_size[0] // self.debug_divisor)
+            full_ds = (full_ds[1] // self.debug_divisor, full_ds[0] // self.debug_divisor)
+            self.display_size = full_ds
+            self.image_size = (self.image_size[1] // self.debug_divisor, self.image_size[1] // self.debug_divisor)
             fs = 0
 
-            size = (self.display_size[1] // self.debug_divisor, self.vertical_diff // self.debug_divisor)
+            size = (canvas_size[1] // self.debug_divisor, self.vertical_diff // self.debug_divisor)
             v = min(size) // 2
             h = max(size)
             indicator_size = (v, v)
             self.indicator_offset_l = (0, 0)
             self.indicator_offset_r = (h - v, 0)
         elif not self.screen_rotated:
-            ds = tuple(reversed(ds))
-
-            size = (self.vertical_diff, self.display_size[1])
+            size = (self.vertical_diff, canvas_size[1])
             v = min(size) // 2
             h = max(size)
             indicator_size = (v, v)
             self.indicator_offset_l = (0, 0)
             self.indicator_offset_r = (0, h - v)
         else:
-            size = (self.display_size[1], self.vertical_diff)
+            size = (canvas_size[1], self.vertical_diff)
             v = min(size) // 2
             h = max(size)
             indicator_size = (v, v)
             self.indicator_offset_l = (0, 0)
             self.indicator_offset_r = (h - v, 0)
-        self.pg_screen = pygame.display.set_mode(size=ds, flags=fs)
+        self.pg_display = pygame.display.set_mode(size=self.display_size, flags=fs)
+        self.pg_canvas = pygame.Surface(size=cs, flags=fs)
         self.pg_indicator = pygame.Surface(indicator_size)
         self.rng = np.random.default_rng()
 
@@ -265,7 +267,7 @@ class Renderer:
             if self.debug or self.screen_rotated:
                 center = (self.bbox.x_bounds().center(), self.bbox.y_bounds().center())
             else:
-                center = (self.bbox.x_bounds(flip=True, offset=self.image_size[0]).center(), self.bbox.y_bounds().center())
+                center = (self.bbox.x_bounds(flip=True, offset=pg_face.get_size()[0]).center(), self.bbox.y_bounds().center())
             if self.halo_center is not None:
                 self.halo_center = (utils.conv_comb(center[0], self.halo_center[0], 0.75), utils.conv_comb(center[1], self.halo_center[1], 0.75))
             else:
@@ -285,11 +287,20 @@ class Renderer:
             pg_face.blit(pg_face_fg, (0, 0))
 
         if self.debug:
-            self.pg_screen.blit(pg_face, (0, self.vertical_diff // 2 // self.debug_divisor))
+            if pg_face.get_size() == self.image_size:
+                self.pg_canvas.blit(pg_face, (0, self.vertical_diff // 2 // self.debug_divisor))
+            else:
+                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (0, self.vertical_diff // 2 // self.debug_divisor))
         elif not self.screen_rotated:
-            self.pg_screen.blit(pg_face, (self.vertical_diff // 2, 0))
+            if pg_face.get_size() == self.image_size:
+                self.pg_canvas.blit(pg_face, (self.vertical_diff // 2, 0))
+            else:
+                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (self.vertical_diff // 2, 0))
         else:
-            self.pg_screen.blit(pg_face, (0, self.vertical_diff // 2))
+            if pg_face.get_size() == self.image_size:
+                self.pg_canvas.blit(pg_face, (0, self.vertical_diff // 2))
+            else:
+                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (0, self.vertical_diff // 2))
     
     def render_indicator(self, seq: int):
         self.pg_indicator.fill((0, 0, 0))
@@ -335,20 +346,27 @@ class Renderer:
                 surf = pygame.surfarray.make_surface(d * coef)
                 self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
 
-        self.pg_screen.blit(self.pg_indicator, self.indicator_offset_l)
-        self.pg_screen.blit(self.pg_indicator, self.indicator_offset_r)
+        self.pg_canvas.blit(self.pg_indicator, self.indicator_offset_l)
+        self.pg_canvas.blit(self.pg_indicator, self.indicator_offset_r)
     
     def render(self, color: cv2.Mat, depth: cv2.Mat, face_bbox: Optional[BBox], seq: int) -> bool:
         """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
         Renders the final image.
         
         Returns True when user wants to terminate."""
+        print('A', self.image_size, color.shape, depth.shape, face_bbox)
         if color.shape[:2] != depth.shape[:2]:
             #print(color.shape, depth.shape)
             depth = cv2.resize(depth, color.shape[:2])
         if self.debug:
-            color = cv2.resize(color, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
-            depth = cv2.resize(depth, (self.image_size[1] // self.debug_divisor, self.image_size[0] // self.debug_divisor))
+            if face_bbox is not None:
+                face_bbox = BBox(face_bbox.x0 * self.image_size[1] // color.shape[0],
+                                 face_bbox.y0 * self.image_size[0] // color.shape[1],
+                                 face_bbox.x1 * self.image_size[1] // color.shape[0],
+                                 face_bbox.y1 * self.image_size[0] // color.shape[1])
+            color = cv2.resize(color, (self.image_size[1], self.image_size[0]))
+            depth = cv2.resize(depth, (self.image_size[1], self.image_size[0]))
+        print('B', self.image_size, color.shape, depth.shape, face_bbox)
         
         if face_bbox is not None:
             self.is_face = True
@@ -362,14 +380,17 @@ class Renderer:
             tl = face_bbox.top_left()
             br = face_bbox.bottom_right()
             self.bbox = BBox(tl[0], tl[1], br[0], br[1])
-            if self.debug:
-                self.bbox = BBox(self.bbox.x0 // self.debug_divisor, self.bbox.y0 // self.debug_divisor, self.bbox.x1 // self.debug_divisor, self.bbox.y1 // self.debug_divisor)
         else:
             self.is_face = False
             self.final_trigger_time = None
+        print('C', self.image_size, color.shape, depth.shape, self.bbox)
         
         self.render_face(color, depth, seq)
         self.render_indicator(seq)
+        if self.global_upscale[0] == self.global_upscale[1]:
+            self.pg_display.blit(self.pg_canvas, (0, 0))
+        else:
+            pygame.transform.scale(self.pg_canvas, self.pg_display.get_size(), self.pg_display)
 
         pygame.display.update()
 

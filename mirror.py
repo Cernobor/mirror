@@ -13,13 +13,15 @@ import host_sync
 from rendering import BBox, Renderer
 import utils
 
-DISPLAY_SIZE: tuple[int, int] = (1920, 1080)
-IMAGE_SIZE: tuple[int, int] = (1080, 1080)
+DISPLAY_SIZE: typing.Tuple[int, int] = (1920, 1080)
+IMAGE_SIZE: typing.Tuple[int, int] = (1080, 1080)
 
 def main():
     config = parse_args()
     print('Creating pipeline...')
-    pl = pipeline.create_pipeline()
+    pl = pipeline.create_pipeline(IMAGE_SIZE,
+                                  (config.global_res_scale[0] * config.video_res_scale[0],
+                                   config.global_res_scale[1] * config.video_res_scale[1]))
     print('Saving pipeline to JSON...')
     with open('pipeline.json', 'w') as f:
         json.dump(pl.serializeToJson(), f, indent=2)
@@ -42,6 +44,8 @@ def parse_args() -> utils.Config:
     ap.add_argument('--trigger-files', nargs=2, help='Paths to files that will be read for special and final trigger respectively.')
     ap.add_argument('--trigger-gpios', type=int, nargs=2, help='Pin numbers that will be checked (pullup, trigger on LOW) for special and final trigger respectively.')
     ap.add_argument('--screen-rotated', action='store_true', help='Tells the program that the display is already rotated by the system.')
+    ap.add_argument('--global-resolution-scale', type=int, nargs=2, default=[1, 1], help='Global scaling of the resolution. The two arguments are numerator and denominator of a fraction by which the standard 1080p resolution will be multiplied.')
+    ap.add_argument('--video-resolution-scale', type=int, nargs=2, default=[1, 1], help='Scaling of the resolution of the video. The two arguments are numerator and denominator of a fraction by which the standard 1080p resolution will be multiplied.')
 
     ns = ap.parse_args()
     print(ns)
@@ -73,7 +77,9 @@ def parse_args() -> utils.Config:
         special_trigger_file=stf,
         final_trigger_file=ftf,
         special_trigger_pin=stp,
-        final_trigger_pin=ftp
+        final_trigger_pin=ftp,
+        global_res_scale=ns.global_resolution_scale,
+        video_res_scale=ns.video_resolution_scale
     )
 
 
@@ -114,7 +120,8 @@ def run(device: dai.Device, config: utils.Config):
     ]
     sync = host_sync.HostSync(device, *queues, print_add=False)
     renderer = Renderer(display_size=DISPLAY_SIZE,
-                        image_size=IMAGE_SIZE,
+                        image_size=utils.scale(IMAGE_SIZE, *config.global_res_scale),
+                        global_upscale=tuple(reversed(config.global_res_scale)),
                         screen_rotated=config.screen_rotated,
                         depth=config.depth,
                         halo_common_dir=config.halo_common,
