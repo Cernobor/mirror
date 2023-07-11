@@ -138,6 +138,7 @@ class Renderer:
             self.indicator_offset_l = (0, 0)
             self.indicator_offset_r = (0, h - v)
         else:
+            cs = (canvas_size[1], canvas_size[0])
             size = (canvas_size[1], self.vertical_diff)
             v = min(size) // 2
             h = max(size)
