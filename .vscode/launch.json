@@ -10,7 +10,18 @@
             "request": "launch",
             "program": "mirror.py",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--halo-common", "./assets/halo-a",
+                "--halo-special", "./assets/halo-b",
+                "--trigger-files", "./special", "./final",
+                "--background-stars-no", "100",
+                "--common-constellations", "./assets/common_normalized.json",
+                "--special-constellations", "./assets/special_normalized.json",
+                "--depth", "2000",
+                "--video-resolution-scale", "1", "2"
+            ]
         }
     ]
 }

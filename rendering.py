@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import math
 import os
 import random
 import time
@@ -75,6 +76,10 @@ class Renderer:
                  background_stars_no: int,
                  common_constellations_js: str,
                  special_constellations_js: str,
+                 halo_fade_in_time: float,
+                 constellation_fade_in_time: float,
+                 halo_delay_time: float,
+                 constellation_delay_time: float,
                  debug: bool=False) -> None:
         self.display_size = display_size
         self.image_size = image_size
@@ -87,6 +92,10 @@ class Renderer:
         self.background_stars_no = background_stars_no
         self.common_constellations_js = common_constellations_js
         self.special_constellations_js = special_constellations_js
+        self.halo_fade_in_time = halo_fade_in_time
+        self.constellation_fade_in_time = constellation_fade_in_time
+        self.halo_delay_time = halo_delay_time
+        self.constellation_delay_time = constellation_delay_time
         self.debug = debug
 
         self._prepare()
@@ -94,12 +103,15 @@ class Renderer:
     def _prepare(self):
         # general init
         pygame.init()
+        self.is_face_prev = False
         self.is_face = False
         self.bbox = BBox(0, 0, 0, 0)
         self.final_trigger_time = None
         self.constellation = None
         self.debug_divisor = 2
         self.special = False
+        self.final_trigger_prev = False
+        self.final_trigger = False
         self.final = False
         self.halo_factor = None
         self.halo_center = None
@@ -254,7 +266,11 @@ class Renderer:
             imgs = self.halo_common_imgs
         else:
             imgs = []
-        coef = self.effect_coef(2)
+        
+        if self.final:
+            coef = self.effect_coef(self.halo_delay_time, self.halo_fade_in_time)
+        else:
+            coef = 0
         if coef > 0 and imgs:
             img = pygame.image.load(imgs[seq % len(imgs)]).convert_alpha()
             size = img.get_size()
@@ -281,6 +297,9 @@ class Renderer:
                         self.halo_center[self.vertical_idx] - scaled.get_height() // 2)
             scaled.set_alpha(255 * coef)
             pg_face.blit(scaled, top_left)
+        else:
+            self.halo_factor = None
+            self.halo_center = None
         
         if bg_mask is not None:
             pg_face_fg = pygame.Surface(color.shape[:2], pygame.SRCALPHA, 32)
@@ -309,8 +328,6 @@ class Renderer:
     def render_indicator(self, seq: int):
         self.pg_indicator.fill((0, 0, 0))
 
-        coef = self.effect_coef(2)
-        
         size = self.pg_indicator.get_size()
         for star in self.background_stars:
             s = star['star']
@@ -334,7 +351,12 @@ class Renderer:
             surf = pygame.surfarray.make_surface(d * m)
             self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
         
-        if self.final and self.constellation is not None:
+        if self.final:
+            coef = self.effect_coef(self.constellation_delay_time, self.constellation_fade_in_time)
+        else:
+            coef = 0
+        
+        if coef > 0 and self.constellation is not None:
             for star in self.constellation:
                 s = star['star']
                 d = s['data']
@@ -372,19 +394,53 @@ class Renderer:
         
         if face_bbox is not None:
             self.is_face = True
-            if self.final and self.final_trigger_time is None:
-                self.final_trigger_time = time.time()
-                if self.special:
-                    self.constellation = random.choice(self.special_constellations)
-                else:
-                    self.constellation = random.choice(self.common_constellations)
-            
             tl = face_bbox.top_left()
             br = face_bbox.bottom_right()
             self.bbox = BBox(tl[0], tl[1], br[0], br[1])
         else:
             self.is_face = False
-            self.final_trigger_time = None
+        
+        
+        face_change = 0
+        if not self.is_face and self.is_face_prev:
+            face_change = -1
+            print(f'-face final={self.final} ftt={self.final_trigger_time}')
+        elif self.is_face and not self.is_face_prev:
+            face_change = 1
+            print(f'+face final={self.final} ftt={self.final_trigger_time}')
+        final_change = 0
+        if not self.final_trigger and self.final_trigger_prev:
+            final_change = -1
+            print(f'-final final={self.final} ftt={self.final_trigger_time}')
+        elif self.final_trigger and not self.final_trigger_prev:
+            final_change = 1
+            print(f'+final final={self.final} ftt={self.final_trigger_time}')
+        
+        if self.final:
+            if face_change == -1:
+                self.final = False
+                self.final_trigger_time = None
+            elif face_change == 1:
+                self.final_trigger_time = time.time()
+                self.final_trigger_time = time.time()
+                if self.special:
+                    self.constellation = random.choice(self.special_constellations)
+                else:
+                    self.constellation = random.choice(self.common_constellations)
+        else:
+            if final_change == 1:
+                self.final = True
+                if self.is_face:
+                    self.final_trigger_time = time.time()
+                    self.final_trigger_time = time.time()
+                    if self.special:
+                        self.constellation = random.choice(self.special_constellations)
+                    else:
+                        self.constellation = random.choice(self.common_constellations)
+        
+        
+        self.final_trigger_prev = self.final_trigger
+        self.is_face_prev = self.is_face
         
         self.render_face(color, depth, seq)
         self.render_indicator(seq)
@@ -401,10 +457,15 @@ class Renderer:
                 return True
         return False
 
-    def effect_coef(self, fade_in_time: float) -> float:
+    def effect_coef(self, delay_time: float, fade_in_time: float) -> float:
         if self.final_trigger_time is not None:
-            t = time.time() - self.final_trigger_time
-            return max(min(t - fade_in_time, 1), 0)
+            t = time.time() - self.final_trigger_time - delay_time
+            if t < 0:
+                return 0
+            #coef = 1 / (1 + math.exp2(-(t - fade_in_time / 2) * 2 * 9 / fade_in_time))
+            #coef = t / fade_in_time
+            coef = (1 - math.cos(math.pi * t / fade_in_time)) / 2 if t < fade_in_time else 1
+            return max(min(coef, 1), 0)
         return 0
     
     def switch_coords(self, c: Tuple[int, int]) -> Tuple[int, int]:

@@ -42,6 +42,10 @@ def parse_args() -> utils.Config:
     ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
     ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
     ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
+    ap.add_argument('--halo-fade-in-time', type=float, default=1, help='Fade-in time of the halo effect.')
+    ap.add_argument('--constellation-fade-in-time', type=float, default=1, help='Fade-in time of the constellation effect.')
+    ap.add_argument('--halo-delay-time', type=float, default=0, help='Delay time before the start of the fade-in of the halo effect.')
+    ap.add_argument('--constellation-delay-time', type=float, default=0, help='Delay time before the start of the fade-in of the constellation effect.')
     ap.add_argument('--trigger-files', nargs=2, help='Paths to files that will be read for special and final trigger respectively.')
     ap.add_argument('--trigger-gpios', type=int, nargs=2, help='Pin numbers that will be checked (pullup, trigger on LOW) for special and final trigger respectively.')
     ap.add_argument('--screen-rotated', action='store_true', help='Tells the program that the display is already rotated by the system.')
@@ -80,6 +84,10 @@ def parse_args() -> utils.Config:
         background_stars_no=ns.background_stars_no,
         common_constellations=ns.common_constellations,
         special_constellations=ns.special_constellations,
+        halo_fade_in_time=ns.halo_fade_in_time,
+        constellation_fade_in_time=ns.constellation_fade_in_time,
+        halo_delay_time=ns.halo_delay_time,
+        constellation_delay_time=ns.constellation_delay_time,
         special_trigger_file=stf,
         final_trigger_file=ftf,
         special_trigger_pin=stp,
@@ -118,7 +126,7 @@ def run(device: dai.Device, config: utils.Config):
         print('Configured trigger GPIOs.')
 
     device.setLogLevel(dai.LogLevel.INFO)
-    device.setLogOutputLevel(dai.LogLevel.INFO)
+    device.setLogOutputLevel(dai.LogLevel.WARN)
     queues = [
         'color',
         'nearest_face',
@@ -136,6 +144,10 @@ def run(device: dai.Device, config: utils.Config):
                         background_stars_no=config.background_stars_no,
                         common_constellations_js=config.common_constellations,
                         special_constellations_js=config.special_constellations,
+                        halo_fade_in_time=config.halo_fade_in_time,
+                        constellation_fade_in_time=config.constellation_fade_in_time,
+                        halo_delay_time=config.halo_delay_time,
+                        constellation_delay_time=config.constellation_delay_time,
                         debug=config.debug)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
@@ -156,13 +168,13 @@ def run(device: dai.Device, config: utils.Config):
         latency = (dai.Clock.now() - color_in.getTimestamp()).total_seconds() * 1000
         latency_buffer[latency_buffer_idx] = latency
         latency_buffer_idx = (latency_buffer_idx + 1) % latency_buffer.size
-        print('Seq: {}, Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(seq, latency, np.average(latency_buffer), np.std(latency_buffer)))
         t = time.time()
         fps = 1 / (t - last_frame_time)
         last_frame_time = t
         fps_buffer[fps_buffer_idx] = fps
         fps_buffer_idx = (fps_buffer_idx + 1) % fps_buffer.size
-        print('Seq: {}, FPS: {:.2f}, Average FPS: {:.2f}, Std: {:.2f}'.format(seq, fps, np.average(fps_buffer), np.std(fps_buffer)))
+        #print('Seq: {}, Latency: {:.2f} ms, Average latency: {:.2f} ms, Std: {:.2f}'.format(seq, latency, np.average(latency_buffer), np.std(latency_buffer)))
+        #print('Seq: {}, FPS: {:.2f}, Average FPS: {:.2f}, Std: {:.2f}'.format(seq, fps, np.average(fps_buffer), np.std(fps_buffer)))
 
         color = typing.cast(cv2.Mat, color_in.getCvFrame())
         depth = depth_in.getFrame()
@@ -187,11 +199,11 @@ def run(device: dai.Device, config: utils.Config):
                 renderer.special = content == '1'
             with open(config.final_trigger_file) as f:
                 content = f.read().strip()
-                renderer.final = content == '1'
+                renderer.final_trigger = content == '1'
         elif trigger_mode == 'gpio':
             special, final = lines_special_final.get_values()
             renderer.special = special == 0
-            renderer.final = final == 0
+            renderer.final_trigger = final == 0
         else:
             raise ValueError('Illegal trigger_mode')
     

@@ -53,6 +53,10 @@ class Config:
     background_stars_no: int
     common_constellations: str
     special_constellations: str
+    halo_fade_in_time: float
+    constellation_fade_in_time: float
+    halo_delay_time: float
+    constellation_delay_time: float
     special_trigger_file: Optional[str]
     final_trigger_file: Optional[str]
     special_trigger_pin: Optional[int]
