@@ -74,8 +74,10 @@ class Renderer:
                  halo_special_dir: str,
                  halo_position_mixing_coef: float,
                  background_stars_no: int,
-                 common_constellations_js: str,
-                 special_constellations_js: str,
+                 #common_constellations_js: str,
+                 #special_constellations_js: str,
+                 common_constellations_dir: str,
+                 special_constellations_dir: str,
                  halo_fade_in_time: float,
                  constellation_fade_in_time: float,
                  halo_delay_time: float,
@@ -90,8 +92,10 @@ class Renderer:
         self.halo_special_dir = halo_special_dir
         self.halo_position_mixing_coef = halo_position_mixing_coef
         self.background_stars_no = background_stars_no
-        self.common_constellations_js = common_constellations_js
-        self.special_constellations_js = special_constellations_js
+        #self.common_constellations_js = common_constellations_js
+        #self.special_constellations_js = special_constellations_js
+        self.common_constellations_dir = common_constellations_dir
+        self.special_constellations_dir = special_constellations_dir
         self.halo_fade_in_time = halo_fade_in_time
         self.constellation_fade_in_time = constellation_fade_in_time
         self.halo_delay_time = halo_delay_time
@@ -108,6 +112,7 @@ class Renderer:
         self.bbox = BBox(0, 0, 0, 0)
         self.final_trigger_time = None
         self.constellation = None
+        self.halo = None
         self.debug_divisor = 2
         self.special = False
         self.final_trigger_prev = False
@@ -194,35 +199,43 @@ class Renderer:
             }
             self.background_stars.append(star)
         
-        # setup common constellations
-        self.common_constellations = []
-        with open(self.common_constellations_js) as f:
-            common_constellations = json.load(f)
-        for v in common_constellations.values():
-            c = []
-            for p in v:
-                s = p['mag'] * 2 + 10
-                star = {
-                    'coords': (p['x'], p['y']),
-                    'star': self.stars[s]
-                }
-                c.append(star)
-            self.common_constellations.append(c)
-        
-        # setup special constellations
-        self.special_constellations = []
-        with open(self.special_constellations_js) as f:
-            special_constellations = json.load(f)
-        for v in special_constellations.values():
-            c = []
-            for p in v:
-                s = p['mag'] * 2 + 10
-                star = {
-                    'coords': (p['x'], p['y']),
-                    'star': self.stars[s]
-                }
-                c.append(star)
-            self.special_constellations.append(c)
+        # setup constellations
+        #self.common_constellations = []
+        #with open(self.common_constellations_js) as f:
+        #    common_constellations = json.load(f)
+        #for v in common_constellations.values():
+        #    c = []
+        #    for p in v:
+        #        s = p['mag'] * 2 + 10
+        #        star = {
+        #            'coords': (p['x'], p['y']),
+        #            'star': self.stars[s]
+        #        }
+        #        c.append(star)
+        #    self.common_constellations.append(c)
+        self.common_constellations_imgs = []
+        if self.common_constellations_dir:
+            files = os.listdir(self.common_constellations_dir)
+            files.sort()
+            self.common_constellations_imgs = [os.path.join(self.common_constellations_dir, f) for f in files]
+        #self.special_constellations = []
+        #with open(self.special_constellations_js) as f:
+        #    special_constellations = json.load(f)
+        #for v in special_constellations.values():
+        #    c = []
+        #    for p in v:
+        #        s = p['mag'] * 2 + 10
+        #        star = {
+        #            'coords': (p['x'], p['y']),
+        #            'star': self.stars[s]
+        #        }
+        #        c.append(star)
+        #    self.special_constellations.append(c)
+        self.special_constellations_imgs = []
+        if self.special_constellations_dir:
+            files = os.listdir(self.special_constellations_dir)
+            files.sort()
+            self.special_constellations_imgs = [os.path.join(self.special_constellations_dir, f) for f in files]
         
         # setup mirror halo
         self.halo_common_imgs = []
@@ -260,19 +273,12 @@ class Renderer:
         
         pg_face = pygame.surfarray.make_surface(color)
         
-        if self.special and self.halo_special_imgs:
-            imgs = self.halo_special_imgs
-        elif not self.special and self.halo_common_imgs:
-            imgs = self.halo_common_imgs
-        else:
-            imgs = []
-        
         if self.final:
             coef = self.effect_coef(self.halo_delay_time, self.halo_fade_in_time)
         else:
             coef = 0
-        if coef > 0 and imgs:
-            img = pygame.image.load(imgs[seq % len(imgs)]).convert_alpha()
+        if coef > 0 and self.halo:
+            img = pygame.image.load(self.halo[seq % len(self.halo)]).convert_alpha()
             size = img.get_size()
             img_h = size[1]
             bbox_h = self.bbox.size()[self.vertical_idx]
@@ -357,20 +363,22 @@ class Renderer:
             coef = 0
         
         if coef > 0 and self.constellation is not None:
-            for star in self.constellation:
-                s = star['star']
-                d = s['data']
-                coords = self.switch_coords(star['coords'])
-                coords = (
-                    int(coords[0] * size[0]) + s['center_offset'][0],
-                    int(coords[1] * size[1]) + s['center_offset'][1]
-                )
-
-                if int(255 * coef) < 1:
-                    continue
-
-                surf = pygame.surfarray.make_surface(d * coef)
-                self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
+            #for star in self.constellation:
+            #    s = star['star']
+            #    d = s['data']
+            #    coords = self.switch_coords(star['coords'])
+            #    coords = (
+            #        int(coords[0] * size[0]) + s['center_offset'][0],
+            #        int(coords[1] * size[1]) + s['center_offset'][1]
+            #    )
+            #
+            #    if int(255 * coef) < 1:
+            #        continue
+            #
+            #    surf = pygame.surfarray.make_surface(d * coef)
+            #    self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
+            self.constellation.set_alpha(255 * coef)
+            self.pg_indicator.blit(self.constellation, (0, 0))
 
         self.pg_canvas.blit(self.pg_indicator, self.indicator_offset_l)
         self.pg_canvas.blit(self.pg_indicator, self.indicator_offset_r)
@@ -422,21 +430,13 @@ class Renderer:
                 self.final_trigger_time = None
             elif face_change == 1:
                 self.final_trigger_time = time.time()
-                self.final_trigger_time = time.time()
-                if self.special:
-                    self.constellation = random.choice(self.special_constellations)
-                else:
-                    self.constellation = random.choice(self.common_constellations)
+                self.choose_effect()
         else:
             if final_change == 1:
                 self.final = True
                 if self.is_face:
                     self.final_trigger_time = time.time()
-                    self.final_trigger_time = time.time()
-                    if self.special:
-                        self.constellation = random.choice(self.special_constellations)
-                    else:
-                        self.constellation = random.choice(self.common_constellations)
+                    self.choose_effect()
         
         
         self.final_trigger_prev = self.final_trigger
@@ -457,6 +457,31 @@ class Renderer:
                 return True
         return False
 
+    def choose_effect(self):
+        print('Choosing effect...')
+        halo = []
+        if self.special:
+            #choice = random.choice(self.special_constellations)
+            constellation = random.choice(self.special_constellations_imgs)
+            if self.halo_special_imgs:
+                halo = self.halo_special_imgs
+        else:
+            #choice = random.choice(self.common_constellations)
+            constellation = random.choice(self.common_constellations_imgs)
+            if not self.special and self.halo_common_imgs:
+                halo = self.halo_common_imgs
+        print(f'Chosen constellation: {constellation}  Chosen halo: {halo}')
+        
+        #self.constellation = choice
+        img = pygame.image.load(constellation).convert_alpha()
+        img_size = img.get_size()
+        surf_size = self.pg_indicator.get_size()
+        factor = surf_size[0] / img_size[0], surf_size[1] / img_size[1]
+        print(f'Indicator surf size: {surf_size}  Constellation img size: {img_size}  Scaling factor: {factor}')
+        self.constellation = pygame.transform.smoothscale_by(img, factor)
+
+        self.halo = halo
+    
     def effect_coef(self, delay_time: float, fade_in_time: float) -> float:
         if self.final_trigger_time is not None:
             t = time.time() - self.final_trigger_time - delay_time

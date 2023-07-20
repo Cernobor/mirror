@@ -46,6 +46,7 @@ def scale(value: Union[int, Tuple[int, ...]], numerator: int, denominator: int) 
 class Config:
     debug: bool
     screen_rotated: bool
+    camera_flipped: bool
     depth: int
     halo_common: str
     halo_special: str

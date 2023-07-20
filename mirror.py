@@ -19,9 +19,7 @@ IMAGE_SIZE: typing.Tuple[int, int] = (1080, 1080)
 def main():
     config = parse_args()
     print('Creating pipeline...')
-    pl = pipeline.create_pipeline(IMAGE_SIZE,
-                                  (config.global_res_scale[0] * config.video_res_scale[0],
-                                   config.global_res_scale[1] * config.video_res_scale[1]))
+    pl = pipeline.create_pipeline(IMAGE_SIZE, config)
     print('Saving pipeline to JSON...')
     with open('pipeline.json', 'w') as f:
         json.dump(pl.serializeToJson(), f, indent=2)
@@ -40,8 +38,10 @@ def parse_args() -> utils.Config:
     ap.add_argument('--halo-special', help='Path to a directory containing images of the special halo animation.')
     ap.add_argument('--halo-position-mixing-coef', type=float, default=1, help='Mixing coefficient for halo position. Must be in the range [0, 1].')
     ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
-    ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
-    ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
+    #ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
+    #ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
+    ap.add_argument('--common-constellations', help='Path to a folder containing images of common constellations.')
+    ap.add_argument('--special-constellations', help='Path to a folder containing images of special constellations.')
     ap.add_argument('--halo-fade-in-time', type=float, default=1, help='Fade-in time of the halo effect.')
     ap.add_argument('--constellation-fade-in-time', type=float, default=1, help='Fade-in time of the constellation effect.')
     ap.add_argument('--halo-delay-time', type=float, default=0, help='Delay time before the start of the fade-in of the halo effect.')
@@ -49,6 +49,7 @@ def parse_args() -> utils.Config:
     ap.add_argument('--trigger-files', nargs=2, help='Paths to files that will be read for special and final trigger respectively.')
     ap.add_argument('--trigger-gpios', type=int, nargs=2, help='Pin numbers that will be checked (pullup, trigger on LOW) for special and final trigger respectively.')
     ap.add_argument('--screen-rotated', action='store_true', help='Tells the program that the display is already rotated by the system.')
+    ap.add_argument('--camera-flipped', action='store_true', help='Tells the program that the camera is mounted upside down.')
     ap.add_argument('--global-resolution-scale', type=int, nargs=2, default=[1, 1], help='Global scaling of the resolution. The two arguments are numerator and denominator of a fraction by which the standard 1080p resolution will be multiplied.')
     ap.add_argument('--video-resolution-scale', type=int, nargs=2, default=[1, 1], help='Scaling of the resolution of the video. The two arguments are numerator and denominator of a fraction by which the standard 1080p resolution will be multiplied.')
 
@@ -77,6 +78,7 @@ def parse_args() -> utils.Config:
     return utils.Config(
         debug=ns.debug,
         screen_rotated=ns.screen_rotated,
+        camera_flipped=ns.camera_flipped,
         depth=ns.depth,
         halo_common=ns.halo_common,
         halo_special=ns.halo_special,
@@ -142,8 +144,10 @@ def run(device: dai.Device, config: utils.Config):
                         halo_special_dir=config.halo_special,
                         halo_position_mixing_coef=config.halo_position_mixing_coef,
                         background_stars_no=config.background_stars_no,
-                        common_constellations_js=config.common_constellations,
-                        special_constellations_js=config.special_constellations,
+                        #common_constellations_js=config.common_constellations,
+                        #special_constellations_js=config.special_constellations,
+                        common_constellations_dir=config.common_constellations,
+                        special_constellations_dir=config.special_constellations,
                         halo_fade_in_time=config.halo_fade_in_time,
                         constellation_fade_in_time=config.constellation_fade_in_time,
                         halo_delay_time=config.halo_delay_time,

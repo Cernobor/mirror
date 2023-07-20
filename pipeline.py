@@ -2,12 +2,16 @@ from typing import Tuple
 import depthai as dai
 import blobconverter
 
-from utils import scale
+from utils import scale, Config
 
 
-def create_pipeline(unscaled_video_size: Tuple[int, int], isp_scale: Tuple[int, int]) -> dai.Pipeline:
-    pipeline = dai.Pipeline()
+#def create_pipeline(unscaled_video_size: Tuple[int, int], isp_scale: Tuple[int, int]) -> dai.Pipeline:
+def create_pipeline(unscaled_video_size: Tuple[int, int], config: Config) -> dai.Pipeline:
+    isp_scale = (config.global_res_scale[0] * config.video_res_scale[0],
+                 config.global_res_scale[1] * config.video_res_scale[1])
     fps = 25
+
+    pipeline = dai.Pipeline()
 
     # Nodes
 
@@ -24,16 +28,22 @@ def create_pipeline(unscaled_video_size: Tuple[int, int], isp_scale: Tuple[int, 
     # Preview flip
     previewFlip = pipeline.create(dai.node.ImageManip)
     previewFlip.setMaxOutputFrameSize(270_000)
-    previewFlip.initialConfig.setHorizontalFlip(True)
     previewFlip.inputImage.setBlocking(False)
     previewFlip.inputImage.setQueueSize(1)
+    if config.camera_flipped:
+        previewFlip.initialConfig.setVerticalFlip(True)
+    else:
+        previewFlip.initialConfig.setHorizontalFlip(True)
 
     # Color flip
     colorFlip = pipeline.create(dai.node.ImageManip)
     colorFlip.setMaxOutputFrameSize(1_749_600)
-    colorFlip.initialConfig.setHorizontalFlip(True)
     colorFlip.inputImage.setBlocking(False)
     colorFlip.inputImage.setQueueSize(1)
+    if config.camera_flipped:
+        colorFlip.initialConfig.setVerticalFlip(True)
+    else:
+        colorFlip.initialConfig.setHorizontalFlip(True)
 
     # Mono left
     monoLeft = pipeline.create(dai.node.MonoCamera)
@@ -84,11 +94,14 @@ def create_pipeline(unscaled_video_size: Tuple[int, int], isp_scale: Tuple[int, 
     # Depth crop & flip
     depthCropFlip = pipeline.create(dai.node.ImageManip)
     depthCropFlip.setMaxOutputFrameSize(2332800)
-    depthCropFlip.initialConfig.setCropRect(420/1920, 0, (1080+420)/1920, 1)
-    depthCropFlip.initialConfig.setResize(1080 // 3, 1080 // 3)
-    depthCropFlip.initialConfig.setHorizontalFlip(True)
     depthCropFlip.inputImage.setBlocking(False)
     depthCropFlip.inputImage.setQueueSize(1)
+    depthCropFlip.initialConfig.setCropRect(420/1920, 0, (1080+420)/1920, 1)
+    depthCropFlip.initialConfig.setResize(1080 // 3, 1080 // 3)
+    if config.camera_flipped:
+        depthCropFlip.initialConfig.setVerticalFlip(True)
+    else:
+        depthCropFlip.initialConfig.setHorizontalFlip(True)
 
     # Face detection NN
     faceDetNN = pipeline.create(dai.node.MobileNetDetectionNetwork)
