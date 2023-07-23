@@ -36,6 +36,8 @@ def parse_args() -> utils.Config:
     ap.add_argument('--depth', type=int, default=0, help='Cutoff depth between foreground (person) and background.')
     ap.add_argument('--halo-common', help='Path to a directory containing images of the common halo animation.')
     ap.add_argument('--halo-special', help='Path to a directory containing images of the special halo animation.')
+    ap.add_argument('--halo-common-blow-factor', type=float, default=1, help='Extra scaling factor applied to the normal halo when fitting onto the face.')
+    ap.add_argument('--halo-special-blow-factor', type=float, default=1, help='Extra scaling factor applied to the special halo when fitting onto the face.')
     ap.add_argument('--halo-position-mixing-coef', type=float, default=1, help='Mixing coefficient for halo position. Must be in the range [0, 1].')
     ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
     #ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
@@ -82,6 +84,8 @@ def parse_args() -> utils.Config:
         depth=ns.depth,
         halo_common=ns.halo_common,
         halo_special=ns.halo_special,
+        halo_common_blow_factor=ns.halo_common_blow_factor,
+        halo_special_blow_factor=ns.halo_special_blow_factor,
         halo_position_mixing_coef=ns.halo_position_mixing_coef,
         background_stars_no=ns.background_stars_no,
         common_constellations=ns.common_constellations,
@@ -142,6 +146,8 @@ def run(device: dai.Device, config: utils.Config):
                         depth=config.depth,
                         halo_common_dir=config.halo_common,
                         halo_special_dir=config.halo_special,
+                        halo_common_blow_factor=config.halo_common_blow_factor,
+                        halo_special_blow_factor=config.halo_special_blow_factor,
                         halo_position_mixing_coef=config.halo_position_mixing_coef,
                         background_stars_no=config.background_stars_no,
                         #common_constellations_js=config.common_constellations,

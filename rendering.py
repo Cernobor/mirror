@@ -72,6 +72,8 @@ class Renderer:
                  depth: int,
                  halo_common_dir: str,
                  halo_special_dir: str,
+                 halo_common_blow_factor: float,
+                 halo_special_blow_factor: float,
                  halo_position_mixing_coef: float,
                  background_stars_no: int,
                  #common_constellations_js: str,
@@ -90,6 +92,8 @@ class Renderer:
         self.depth = depth
         self.halo_common_dir = halo_common_dir
         self.halo_special_dir = halo_special_dir
+        self.halo_common_blow_factor = halo_common_blow_factor
+        self.halo_special_blow_factor = halo_special_blow_factor
         self.halo_position_mixing_coef = halo_position_mixing_coef
         self.background_stars_no = background_stars_no
         #self.common_constellations_js = common_constellations_js
@@ -113,6 +117,7 @@ class Renderer:
         self.final_trigger_time = None
         self.constellation = None
         self.halo = None
+        self.halo_blow_factor = 1
         self.debug_divisor = 2
         self.special = False
         self.final_trigger_prev = False
@@ -282,7 +287,7 @@ class Renderer:
             size = img.get_size()
             img_h = size[1]
             bbox_h = self.bbox.size()[self.vertical_idx]
-            factor = bbox_h / img_h * 2.5
+            factor = bbox_h / img_h * self.halo_blow_factor
             if self.halo_factor is not None:
                 self.halo_factor = utils.conv_comb(factor, self.halo_factor, 0.5)
             else:
@@ -465,11 +470,13 @@ class Renderer:
             constellation = random.choice(self.special_constellations_imgs)
             if self.halo_special_imgs:
                 halo = self.halo_special_imgs
+            self.halo_blow_factor = self.halo_special_blow_factor
         else:
             #choice = random.choice(self.common_constellations)
             constellation = random.choice(self.common_constellations_imgs)
             if not self.special and self.halo_common_imgs:
                 halo = self.halo_common_imgs
+            self.halo_blow_factor = self.halo_common_blow_factor
         print(f'Chosen constellation: {constellation}  Chosen halo: {halo}')
         
         #self.constellation = choice
