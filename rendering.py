@@ -75,6 +75,7 @@ class Renderer:
                  halo_common_blow_factor: float,
                  halo_special_blow_factor: float,
                  halo_position_mixing_coef: float,
+                 halo_decay_coef: float,
                  background_stars_no: int,
                  #common_constellations_js: str,
                  #special_constellations_js: str,
@@ -95,6 +96,7 @@ class Renderer:
         self.halo_common_blow_factor = halo_common_blow_factor
         self.halo_special_blow_factor = halo_special_blow_factor
         self.halo_position_mixing_coef = halo_position_mixing_coef
+        self.halo_decay_coef = halo_decay_coef
         self.background_stars_no = background_stars_no
         #self.common_constellations_js = common_constellations_js
         #self.special_constellations_js = special_constellations_js
@@ -167,6 +169,7 @@ class Renderer:
             indicator_size = (v, v)
             self.indicator_offset_l = (0, 0)
             self.indicator_offset_r = (h - v, 0)
+        self.pg_halo = None
         self.pg_display = pygame.display.set_mode(size=self.display_size, flags=fs)
         self.pg_canvas = pygame.Surface(size=cs, flags=fs)
         self.pg_indicator = pygame.Surface(indicator_size)
@@ -275,7 +278,7 @@ class Renderer:
             else:
                 bg_mask = np.flip(bg_mask, 1)
 
-        
+
         pg_face = pygame.surfarray.make_surface(color)
         
         if self.final:
@@ -283,6 +286,14 @@ class Renderer:
         else:
             coef = 0
         if coef > 0 and self.halo:
+            if self.halo_decay_coef > 0:
+                if self.pg_halo is None:
+                    self.pg_halo = pygame.surface.Surface(size=pg_face.get_size(),
+                                                        flags=pygame.SRCALPHA)
+                else:
+                    arr = pygame.surfarray.pixels_alpha(self.pg_halo)
+                    arr[:] = (arr * self.halo_decay_coef).astype(np.uint8)[:]
+                    del arr
             img = pygame.image.load(self.halo[seq % len(self.halo)]).convert_alpha()
             size = img.get_size()
             img_h = size[1]
@@ -306,11 +317,17 @@ class Renderer:
             
             top_left = (self.halo_center[self.horizontal_idx] - scaled.get_width() // 2,
                         self.halo_center[self.vertical_idx] - scaled.get_height() // 2)
-            scaled.set_alpha(255 * coef)
-            pg_face.blit(scaled, top_left)
+            if int(255 * coef) < 255:
+                scaled.set_alpha(255 * coef)
+            if self.pg_halo is None:
+                pg_face.blit(scaled, top_left)
+            else:
+                self.pg_halo.blit(scaled, top_left)
+                pg_face.blit(self.pg_halo, (0, 0))
         else:
             self.halo_factor = None
             self.halo_center = None
+            self.pg_halo = None
         
         if bg_mask is not None:
             pg_face_fg = pygame.Surface(color.shape[:2], pygame.SRCALPHA, 32)

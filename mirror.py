@@ -39,6 +39,7 @@ def parse_args() -> utils.Config:
     ap.add_argument('--halo-common-blow-factor', type=float, default=1, help='Extra scaling factor applied to the normal halo when fitting onto the face.')
     ap.add_argument('--halo-special-blow-factor', type=float, default=1, help='Extra scaling factor applied to the special halo when fitting onto the face.')
     ap.add_argument('--halo-position-mixing-coef', type=float, default=1, help='Mixing coefficient for halo position. Must be in the range [0, 1].')
+    ap.add_argument('--halo-decay-coef', type=float, default=0, help='Coefficient of alpha decay (tracing) of the halo. Must be in the range [0, 1).')
     ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
     #ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
     #ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
@@ -73,9 +74,13 @@ def parse_args() -> utils.Config:
         ftp = ns.trigger_gpios[1]
     else:
         raise ValueError('Illegal state.')
-    if ns.halo_position_mixing_coef < 0 or ns.halo_position_mixing_coef > 1:
+    if not (0 <= ns.halo_position_mixing_coef <= 1):
         ap.print_usage(file=sys.stderr)
         print(f'{sys.argv[0]}: error: --halo-position-mixing-coef must be in the range [0, 1]')
+        sys.exit(1)
+    if not (0 <= ns.halo_decay_coef < 1):
+        ap.print_usage(file=sys.stderr)
+        print(f'{sys.argv[0]}: error: --halo-decay-coef must be in the range [0, 1)')
         sys.exit(1)
     return utils.Config(
         debug=ns.debug,
@@ -87,6 +92,7 @@ def parse_args() -> utils.Config:
         halo_common_blow_factor=ns.halo_common_blow_factor,
         halo_special_blow_factor=ns.halo_special_blow_factor,
         halo_position_mixing_coef=ns.halo_position_mixing_coef,
+        halo_decay_coef=ns.halo_decay_coef,
         background_stars_no=ns.background_stars_no,
         common_constellations=ns.common_constellations,
         special_constellations=ns.special_constellations,
@@ -149,6 +155,7 @@ def run(device: dai.Device, config: utils.Config):
                         halo_common_blow_factor=config.halo_common_blow_factor,
                         halo_special_blow_factor=config.halo_special_blow_factor,
                         halo_position_mixing_coef=config.halo_position_mixing_coef,
+                        halo_decay_coef=config.halo_decay_coef,
                         background_stars_no=config.background_stars_no,
                         #common_constellations_js=config.common_constellations,
                         #special_constellations_js=config.special_constellations,

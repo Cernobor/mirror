@@ -53,6 +53,7 @@ class Config:
     halo_common_blow_factor: float
     halo_special_blow_factor: float
     halo_position_mixing_coef: float
+    halo_decay_coef: float
     background_stars_no: int
     common_constellations: str
     special_constellations: str
