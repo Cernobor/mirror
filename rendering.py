@@ -66,52 +66,11 @@ class BBox:
 class Renderer:
     def __init__(self,
                  display_size: Tuple[int, int],
-                 image_size: Tuple[int, int],
-                 global_upscale: Tuple[int, int],
-                 screen_rotated: bool,
-                 depth: int,
-                 halo_common_dir: str,
-                 halo_special_dir: str,
-                 halo_common_blow_factor: float,
-                 halo_special_blow_factor: float,
-                 halo_position_mixing_coef: float,
-                 halo_decay_coef: float,
-                 background_stars_no: int,
-                 #common_constellations_js: str,
-                 #special_constellations_js: str,
-                 common_constellations_dir: str,
-                 special_constellations_dir: str,
-                 halo_fade_in_time: float,
-                 constellation_fade_in_time: float,
-                 halo_delay_time: float,
-                 constellation_delay_time: float,
-                 debug: bool=False) -> None:
+                 config: utils.Config) -> None:
         self.display_size = display_size
-        self.image_size = image_size
-        self.global_upscale = global_upscale
-        self.screen_rotated = screen_rotated
-        self.depth = depth
-        self.halo_common_dir = halo_common_dir
-        self.halo_special_dir = halo_special_dir
-        self.halo_common_blow_factor = halo_common_blow_factor
-        self.halo_special_blow_factor = halo_special_blow_factor
-        self.halo_position_mixing_coef = halo_position_mixing_coef
-        self.halo_decay_coef = halo_decay_coef
-        self.background_stars_no = background_stars_no
-        #self.common_constellations_js = common_constellations_js
-        #self.special_constellations_js = special_constellations_js
-        self.common_constellations_dir = common_constellations_dir
-        self.special_constellations_dir = special_constellations_dir
-        self.halo_fade_in_time = halo_fade_in_time
-        self.constellation_fade_in_time = constellation_fade_in_time
-        self.halo_delay_time = halo_delay_time
-        self.constellation_delay_time = constellation_delay_time
-        self.debug = debug
-
-        self._prepare()
-
-    def _prepare(self):
-        # general init
+        self.config = config
+        self.image_size = utils.scale((min(display_size), min(display_size)), *config.global_res_scale)
+        
         pygame.init()
         self.is_face_prev = False
         self.is_face = False
@@ -120,7 +79,7 @@ class Renderer:
         self.constellation = None
         self.halo = None
         self.halo_blow_factor = 1
-        self.debug_divisor = 2
+        self.config.debug_divisor = 2
         self.special = False
         self.final_trigger_prev = False
         self.final_trigger = False
@@ -131,30 +90,30 @@ class Renderer:
         # setup display sizes and orientations
         self.horizontal_idx = 1
         self.vertical_idx = 0
-        if self.debug or self.screen_rotated:
+        if self.config.debug or self.config.screen_rotated:
             self.horizontal_idx = 0
             self.vertical_idx = 1
 
         full_ds = self.display_size
-        canvas_size = utils.scale(full_ds, *reversed(self.global_upscale))
+        canvas_size = utils.scale(full_ds, *(self.config.global_res_scale))
         cs = canvas_size
         self.vertical_diff = canvas_size[0] - self.image_size[0]
         self.horizontal_diff = canvas_size[1] - self.image_size[1]
         fs = pygame.FULLSCREEN
-        if self.debug:
-            cs = (canvas_size[1] // self.debug_divisor, canvas_size[0] // self.debug_divisor)
-            full_ds = (full_ds[1] // self.debug_divisor, full_ds[0] // self.debug_divisor)
+        if self.config.debug:
+            cs = (canvas_size[1] // self.config.debug_divisor, canvas_size[0] // self.config.debug_divisor)
+            full_ds = (full_ds[1] // self.config.debug_divisor, full_ds[0] // self.config.debug_divisor)
             self.display_size = full_ds
-            self.image_size = (self.image_size[1] // self.debug_divisor, self.image_size[1] // self.debug_divisor)
+            self.image_size = (self.image_size[1] // self.config.debug_divisor, self.image_size[1] // self.config.debug_divisor)
             fs = 0
 
-            size = (canvas_size[1] // self.debug_divisor, self.vertical_diff // self.debug_divisor)
+            size = (canvas_size[1] // self.config.debug_divisor, self.vertical_diff // self.config.debug_divisor)
             v = min(size) // 2
             h = max(size)
             indicator_size = (v, v)
             self.indicator_offset_l = (0, 0)
             self.indicator_offset_r = (h - v, 0)
-        elif not self.screen_rotated:
+        elif not self.config.screen_rotated:
             size = (self.vertical_diff, canvas_size[1])
             v = min(size) // 2
             h = max(size)
@@ -193,7 +152,7 @@ class Renderer:
         
         # setup background stars
         self.background_stars = []
-        for _ in range(self.background_stars_no):
+        for _ in range(self.config.background_stars_no):
             stars = [self.stars[s] for s in range(4, 8)]
             mult_range = (0.4, 0.7)
             mult_speed = 0.15 * (mult_range[1] - mult_range[0]) * (2 * random.random() - 1)
@@ -207,73 +166,46 @@ class Renderer:
             }
             self.background_stars.append(star)
         
-        # setup constellations
-        #self.common_constellations = []
-        #with open(self.common_constellations_js) as f:
-        #    common_constellations = json.load(f)
-        #for v in common_constellations.values():
-        #    c = []
-        #    for p in v:
-        #        s = p['mag'] * 2 + 10
-        #        star = {
-        #            'coords': (p['x'], p['y']),
-        #            'star': self.stars[s]
-        #        }
-        #        c.append(star)
-        #    self.common_constellations.append(c)
         self.common_constellations_imgs = []
-        if self.common_constellations_dir:
-            files = os.listdir(self.common_constellations_dir)
+        if self.config.common_constellations:
+            files = os.listdir(self.config.common_constellations)
             files.sort()
-            self.common_constellations_imgs = [os.path.join(self.common_constellations_dir, f) for f in files]
-        #self.special_constellations = []
-        #with open(self.special_constellations_js) as f:
-        #    special_constellations = json.load(f)
-        #for v in special_constellations.values():
-        #    c = []
-        #    for p in v:
-        #        s = p['mag'] * 2 + 10
-        #        star = {
-        #            'coords': (p['x'], p['y']),
-        #            'star': self.stars[s]
-        #        }
-        #        c.append(star)
-        #    self.special_constellations.append(c)
+            self.common_constellations_imgs = [os.path.join(self.config.common_constellations, f) for f in files]
         self.special_constellations_imgs = []
-        if self.special_constellations_dir:
-            files = os.listdir(self.special_constellations_dir)
+        if self.config.special_constellations:
+            files = os.listdir(self.config.special_constellations)
             files.sort()
-            self.special_constellations_imgs = [os.path.join(self.special_constellations_dir, f) for f in files]
+            self.special_constellations_imgs = [os.path.join(self.config.special_constellations, f) for f in files]
         
         # setup mirror halo
         self.halo_common_imgs = []
-        if self.halo_common_dir:
-            files = os.listdir(self.halo_common_dir)
+        if self.config.halo_common:
+            files = os.listdir(self.config.halo_common)
             files.sort()
-            self.halo_common_imgs = [os.path.join(self.halo_common_dir, f) for f in files]
+            self.halo_common_imgs = [os.path.join(self.config.halo_common, f) for f in files]
         self.halo_special_imgs = []
-        if self.halo_special_dir:
-            files = os.listdir(self.halo_special_dir)
+        if self.config.halo_special:
+            files = os.listdir(self.config.halo_special)
             files.sort()
-            self.halo_special_imgs = [os.path.join(self.halo_special_dir, f) for f in files]
+            self.halo_special_imgs = [os.path.join(self.config.halo_special, f) for f in files]
 
         # save start time
         self.time = time.time()
     
     def render_face(self, color: cv2.Mat, depth: cv2.Mat, seq: int):
-        if self.debug and self.is_face:
+        if self.config.debug and self.is_face:
             cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), 1)
         
         bg_mask = None
-        if self.depth > 0:
-            bg_mask = np.logical_or(depth > self.depth, depth < 350)
+        if self.config.depth > 0:
+            bg_mask = np.logical_or(depth > self.config.depth, depth < 350)
 
         color = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
         cv2.flip(color, 1, color)
-        if self.debug or self.screen_rotated:
+        if self.config.debug or self.config.screen_rotated:
             color = np.rot90(color)
         if bg_mask is not None:
-            if self.debug or self.screen_rotated:
+            if self.config.debug or self.config.screen_rotated:
                 bg_mask = np.transpose(bg_mask)
             else:
                 bg_mask = np.flip(bg_mask, 1)
@@ -282,17 +214,17 @@ class Renderer:
         pg_face = pygame.surfarray.make_surface(color)
         
         if self.final:
-            coef = self.effect_coef(self.halo_delay_time, self.halo_fade_in_time)
+            coef = self.effect_coef(self.config.halo_delay_time, self.config.halo_fade_in_time)
         else:
             coef = 0
         if coef > 0 and self.halo:
-            if self.halo_decay_coef > 0:
+            if self.config.halo_decay_coef > 0:
                 if self.pg_halo is None:
                     self.pg_halo = pygame.surface.Surface(size=pg_face.get_size(),
                                                         flags=pygame.SRCALPHA)
                 else:
                     arr = pygame.surfarray.pixels_alpha(self.pg_halo)
-                    arr[:] = (arr * self.halo_decay_coef).astype(np.uint8)[:]
+                    arr[:] = (arr * self.config.halo_decay_coef).astype(np.uint8)[:]
                     del arr
             img = pygame.image.load(self.halo[seq % len(self.halo)]).convert_alpha()
             size = img.get_size()
@@ -305,13 +237,13 @@ class Renderer:
                 self.halo_factor = factor
             scaled = pygame.transform.smoothscale_by(img, self.halo_factor)
             
-            if self.debug or self.screen_rotated:
+            if self.config.debug or self.config.screen_rotated:
                 center = (self.bbox.x_bounds().center(), self.bbox.y_bounds().center())
             else:
                 center = (self.bbox.x_bounds(flip=True, offset=pg_face.get_size()[0]).center(), self.bbox.y_bounds().center())
             if self.halo_center is not None:
-                self.halo_center = (utils.conv_comb(center[0], self.halo_center[0], self.halo_position_mixing_coef),
-                                    utils.conv_comb(center[1], self.halo_center[1], self.halo_position_mixing_coef))
+                self.halo_center = (utils.conv_comb(center[0], self.halo_center[0], self.config.halo_position_mixing_coef),
+                                    utils.conv_comb(center[1], self.halo_center[1], self.config.halo_position_mixing_coef))
             else:
                 self.halo_center = center
             
@@ -337,12 +269,12 @@ class Renderer:
             del alpha
             pg_face.blit(pg_face_fg, (0, 0))
 
-        if self.debug:
+        if self.config.debug:
             if pg_face.get_size() == self.image_size:
-                self.pg_canvas.blit(pg_face, (0, self.vertical_diff // 2 // self.debug_divisor))
+                self.pg_canvas.blit(pg_face, (0, self.vertical_diff // 2 // self.config.debug_divisor))
             else:
-                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (0, self.vertical_diff // 2 // self.debug_divisor))
-        elif not self.screen_rotated:
+                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (0, self.vertical_diff // 2 // self.config.debug_divisor))
+        elif not self.config.screen_rotated:
             if pg_face.get_size() == self.image_size:
                 self.pg_canvas.blit(pg_face, (self.vertical_diff // 2, 0))
             else:
@@ -380,25 +312,11 @@ class Renderer:
             self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
         
         if self.final:
-            coef = self.effect_coef(self.constellation_delay_time, self.constellation_fade_in_time)
+            coef = self.effect_coef(self.config.constellation_delay_time, self.config.constellation_fade_in_time)
         else:
             coef = 0
         
         if coef > 0 and self.constellation is not None:
-            #for star in self.constellation:
-            #    s = star['star']
-            #    d = s['data']
-            #    coords = self.switch_coords(star['coords'])
-            #    coords = (
-            #        int(coords[0] * size[0]) + s['center_offset'][0],
-            #        int(coords[1] * size[1]) + s['center_offset'][1]
-            #    )
-            #
-            #    if int(255 * coef) < 1:
-            #        continue
-            #
-            #    surf = pygame.surfarray.make_surface(d * coef)
-            #    self.pg_indicator.blit(surf, coords, special_flags=pygame.BLEND_RGB_ADD)
             self.constellation.set_alpha(255 * coef)
             self.pg_indicator.blit(self.constellation, (0, 0))
 
@@ -413,7 +331,7 @@ class Renderer:
         if color.shape[:2] != depth.shape[:2]:
             #print(color.shape, depth.shape)
             depth = cv2.resize(depth, color.shape[:2])
-        if self.debug:
+        if self.config.debug:
             if face_bbox is not None:
                 face_bbox = BBox(face_bbox.x0 * self.image_size[1] // color.shape[0],
                                  face_bbox.y0 * self.image_size[0] // color.shape[1],
@@ -466,7 +384,7 @@ class Renderer:
         
         self.render_face(color, depth, seq)
         self.render_indicator(seq)
-        if self.global_upscale[0] == self.global_upscale[1]:
+        if self.config.global_res_scale[0] == self.config.global_res_scale[1]:
             self.pg_display.blit(self.pg_canvas, (0, 0))
         else:
             pygame.transform.scale(self.pg_canvas, self.pg_display.get_size(), self.pg_display)
@@ -487,13 +405,13 @@ class Renderer:
             constellation = random.choice(self.special_constellations_imgs)
             if self.halo_special_imgs:
                 halo = self.halo_special_imgs
-            self.halo_blow_factor = self.halo_special_blow_factor
+            self.halo_blow_factor = self.config.halo_special_blow_factor
         else:
             #choice = random.choice(self.common_constellations)
             constellation = random.choice(self.common_constellations_imgs)
             if not self.special and self.halo_common_imgs:
                 halo = self.halo_common_imgs
-            self.halo_blow_factor = self.halo_common_blow_factor
+            self.halo_blow_factor = self.config.halo_common_blow_factor
         print(f'Chosen constellation: {constellation}  Chosen halo: {halo}')
         
         #self.constellation = choice
@@ -518,6 +436,6 @@ class Renderer:
         return 0
     
     def switch_coords(self, c: Tuple[int, int]) -> Tuple[int, int]:
-        if not self.debug:
+        if not self.config.debug:
             return c[1], c[0]
         return c

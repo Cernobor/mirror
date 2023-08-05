@@ -15,12 +15,11 @@ from rendering import BBox, Renderer
 import utils
 
 DISPLAY_SIZE: typing.Tuple[int, int] = (1920, 1080)
-IMAGE_SIZE: typing.Tuple[int, int] = (1080, 1080)
 
 def main():
     config = get_conf()
     print('Creating pipeline...')
-    pl = pipeline.create_pipeline(IMAGE_SIZE, config)
+    pl = pipeline.create_pipeline((min(DISPLAY_SIZE), min(DISPLAY_SIZE)), config)
     print('Saving pipeline to JSON...')
     with open('pipeline.json', 'w') as f:
         json.dump(pl.serializeToJson(), f, indent=2)
@@ -87,26 +86,7 @@ def run(device: dai.Device, config: utils.Config):
     ]
     sync = host_sync.HostSync(device, *queues, print_add=False)
     renderer = Renderer(display_size=DISPLAY_SIZE,
-                        image_size=utils.scale(IMAGE_SIZE, *config.global_res_scale),
-                        global_upscale=tuple(reversed(config.global_res_scale)),
-                        screen_rotated=config.screen_rotated,
-                        depth=config.depth,
-                        halo_common_dir=config.halo_common,
-                        halo_special_dir=config.halo_special,
-                        halo_common_blow_factor=config.halo_common_blow_factor,
-                        halo_special_blow_factor=config.halo_special_blow_factor,
-                        halo_position_mixing_coef=config.halo_position_mixing_coef,
-                        halo_decay_coef=config.halo_decay_coef,
-                        background_stars_no=config.background_stars_no,
-                        #common_constellations_js=config.common_constellations,
-                        #special_constellations_js=config.special_constellations,
-                        common_constellations_dir=config.common_constellations,
-                        special_constellations_dir=config.special_constellations,
-                        halo_fade_in_time=config.halo_fade_in_time,
-                        constellation_fade_in_time=config.constellation_fade_in_time,
-                        halo_delay_time=config.halo_delay_time,
-                        constellation_delay_time=config.constellation_delay_time,
-                        debug=config.debug)
+                        config=config)
     latency_buffer = np.zeros((50,), dtype=np.float32)
     latency_buffer_idx = 0
     fps_buffer = np.zeros((50,), dtype=np.float32)
