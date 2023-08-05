@@ -3,7 +3,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import math
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 BASELINE = 75
 FOV = 73
@@ -44,26 +44,39 @@ def scale(value: Union[int, Tuple[int, ...]], numerator: int, denominator: int) 
 
 @dataclass
 class Config:
-    debug: bool
-    screen_rotated: bool
-    camera_flipped: bool
-    depth: int
-    halo_common: str
-    halo_special: str
-    halo_common_blow_factor: float
-    halo_special_blow_factor: float
-    halo_position_mixing_coef: float
-    halo_decay_coef: float
-    background_stars_no: int
-    common_constellations: str
-    special_constellations: str
-    halo_fade_in_time: float
-    constellation_fade_in_time: float
-    halo_delay_time: float
-    constellation_delay_time: float
-    special_trigger_file: Optional[str]
-    final_trigger_file: Optional[str]
-    special_trigger_pin: Optional[int]
-    final_trigger_pin: Optional[int]
-    global_res_scale: Tuple[int, int]
-    video_res_scale: Tuple[int, int]
+    debug: bool = False
+    screen_rotated: bool = False
+    camera_flipped: bool = False
+    depth: int = 0
+    halo_common: str = ''
+    halo_special: str = ''
+    halo_common_blow_factor: float = ''
+    halo_special_blow_factor: float = ''
+    halo_position_mixing_coef: float = ''
+    halo_decay_coef: float = 0
+    background_stars_no: int = 0
+    common_constellations: str = ''
+    special_constellations: str = ''
+    halo_fade_in_time: float = 1
+    constellation_fade_in_time: float = 1
+    halo_delay_time: float = 0
+    constellation_delay_time: float = 0
+    special_trigger_file: Optional[str] = None
+    final_trigger_file: Optional[str] = None
+    special_trigger_pin: Optional[int] = None
+    final_trigger_pin: Optional[int] = None
+    global_res_scale: Tuple[int, int] = (1, 1)
+    video_res_scale: Tuple[int, int] = (1, 1)
+
+    def validate(self) -> List[str]:
+        res = []
+        if self.special_trigger_file is None and self.special_trigger_pin:
+            res.append('exactly one of special_trigger_file and special_trigger_pin must be specified')
+        if self.final_trigger_file is None and self.final_trigger_pin:
+            res.append('exactly one of final_trigger_file and final_trigger_pin must be specified')
+        if not (0 <= self.halo_position_mixing_coef <= 1):
+            res.append('halo_position_mixing_coef must be in the range [0, 1]')
+        if not (0 <= self.halo_decay_coef < 1):
+            res.append('halo_decay_coef must be in the range [0, 1)')
+        
+        return res

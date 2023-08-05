@@ -1,4 +1,5 @@
 import json
+import tomllib
 import typing
 import time
 import argparse
@@ -17,7 +18,7 @@ DISPLAY_SIZE: typing.Tuple[int, int] = (1920, 1080)
 IMAGE_SIZE: typing.Tuple[int, int] = (1080, 1080)
 
 def main():
-    config = parse_args()
+    config = get_conf()
     print('Creating pipeline...')
     pl = pipeline.create_pipeline(IMAGE_SIZE, config)
     print('Saving pipeline to JSON...')
@@ -30,83 +31,23 @@ def main():
         run(device, config)
 
 
-def parse_args() -> utils.Config:
+def get_conf() -> utils.Config:
     ap = argparse.ArgumentParser('mirror')
-    ap.add_argument('--debug', action='store_true', help='If specified, mirror is rendered in non-fullscreen, smaller window.')
-    ap.add_argument('--depth', type=int, default=0, help='Cutoff depth between foreground (person) and background.')
-    ap.add_argument('--halo-common', help='Path to a directory containing images of the common halo animation.')
-    ap.add_argument('--halo-special', help='Path to a directory containing images of the special halo animation.')
-    ap.add_argument('--halo-common-blow-factor', type=float, default=1, help='Extra scaling factor applied to the normal halo when fitting onto the face.')
-    ap.add_argument('--halo-special-blow-factor', type=float, default=1, help='Extra scaling factor applied to the special halo when fitting onto the face.')
-    ap.add_argument('--halo-position-mixing-coef', type=float, default=1, help='Mixing coefficient for halo position. Must be in the range [0, 1].')
-    ap.add_argument('--halo-decay-coef', type=float, default=0, help='Coefficient of alpha decay (tracing) of the halo. Must be in the range [0, 1).')
-    ap.add_argument('--background-stars-no', type=int, default=0, help='Number of randomb background stars.')
-    #ap.add_argument('--common-constellations', help='Path to a JSON file containing common constellations.')
-    #ap.add_argument('--special-constellations', help='Path to a JSON file containing special constellations.')
-    ap.add_argument('--common-constellations', help='Path to a folder containing images of common constellations.')
-    ap.add_argument('--special-constellations', help='Path to a folder containing images of special constellations.')
-    ap.add_argument('--halo-fade-in-time', type=float, default=1, help='Fade-in time of the halo effect.')
-    ap.add_argument('--constellation-fade-in-time', type=float, default=1, help='Fade-in time of the constellation effect.')
-    ap.add_argument('--halo-delay-time', type=float, default=0, help='Delay time before the start of the fade-in of the halo effect.')
-    ap.add_argument('--constellation-delay-time', type=float, default=0, help='Delay time before the start of the fade-in of the constellation effect.')
-    ap.add_argument('--trigger-files', nargs=2, help='Paths to files that will be read for special and final trigger respectively.')
-    ap.add_argument('--trigger-gpios', type=int, nargs=2, help='Pin numbers that will be checked (pullup, trigger on LOW) for special and final trigger respectively.')
-    ap.add_argument('--screen-rotated', action='store_true', help='Tells the program that the display is already rotated by the system.')
-    ap.add_argument('--camera-flipped', action='store_true', help='Tells the program that the camera is mounted upside down.')
-    ap.add_argument('--global-resolution-scale', type=int, nargs=2, default=[1, 1], help='Global scaling of the resolution. The two arguments are numerator and denominator of a fraction by which the standard 1080p resolution will be multiplied.')
-    ap.add_argument('--video-resolution-scale', type=int, nargs=2, default=[1, 1], help='Scaling of the resolution of the video. The two arguments are numerator and denominator of a fraction by which the standard 1080p resolution will be multiplied.')
+    ap.add_argument('-c', '--config', type=argparse.FileType(mode='rb'), help='Configuration file in TOML format.', required=True)
 
     ns = ap.parse_args()
-    print(ns)
-    if ns.trigger_files is None and ns.trigger_gpios is None or ns.trigger_files is not None and ns.trigger_gpios is not None:
-        ap.print_usage(file=sys.stderr)
-        print(f'{sys.argv[0]}: error: exactly one of --trigger-files and --trigger-gpios must be specified')
+    confDict = tomllib.load(ns.config)
+
+    res = utils.Config(**confDict)
+
+    errors = res.validate()
+    if errors:
+        print('Errors in configuration:', file=sys.stderr)
+        for e in errors:
+            print(e, file=sys.stderr)
         sys.exit(1)
-    elif ns.trigger_files is not None:
-        stf = ns.trigger_files[0]
-        ftf = ns.trigger_files[1]
-        stp = None
-        ftp = None
-    elif ns.trigger_gpios is not None:
-        stf = None
-        ftf = None
-        stp = ns.trigger_gpios[0]
-        ftp = ns.trigger_gpios[1]
-    else:
-        raise ValueError('Illegal state.')
-    if not (0 <= ns.halo_position_mixing_coef <= 1):
-        ap.print_usage(file=sys.stderr)
-        print(f'{sys.argv[0]}: error: --halo-position-mixing-coef must be in the range [0, 1]')
-        sys.exit(1)
-    if not (0 <= ns.halo_decay_coef < 1):
-        ap.print_usage(file=sys.stderr)
-        print(f'{sys.argv[0]}: error: --halo-decay-coef must be in the range [0, 1)')
-        sys.exit(1)
-    return utils.Config(
-        debug=ns.debug,
-        screen_rotated=ns.screen_rotated,
-        camera_flipped=ns.camera_flipped,
-        depth=ns.depth,
-        halo_common=ns.halo_common,
-        halo_special=ns.halo_special,
-        halo_common_blow_factor=ns.halo_common_blow_factor,
-        halo_special_blow_factor=ns.halo_special_blow_factor,
-        halo_position_mixing_coef=ns.halo_position_mixing_coef,
-        halo_decay_coef=ns.halo_decay_coef,
-        background_stars_no=ns.background_stars_no,
-        common_constellations=ns.common_constellations,
-        special_constellations=ns.special_constellations,
-        halo_fade_in_time=ns.halo_fade_in_time,
-        constellation_fade_in_time=ns.constellation_fade_in_time,
-        halo_delay_time=ns.halo_delay_time,
-        constellation_delay_time=ns.constellation_delay_time,
-        special_trigger_file=stf,
-        final_trigger_file=ftf,
-        special_trigger_pin=stp,
-        final_trigger_pin=ftp,
-        global_res_scale=ns.global_resolution_scale,
-        video_res_scale=ns.video_resolution_scale
-    )
+    
+    return res
 
 
 def run(device: dai.Device, config: utils.Config):
