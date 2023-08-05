@@ -3,7 +3,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, TypeVar
 
 BASELINE = 75
 FOV = 73
@@ -74,6 +74,8 @@ class Config:
     margin_left: float = 0.0
     constellations_x_size: float = 0.38889
 
+    blending: str = 'alpha'
+
     def validate(self) -> List[str]:
         res = []
         if self.special_trigger_file is None and self.special_trigger_pin:
@@ -84,5 +86,7 @@ class Config:
             res.append('halo_position_mixing_coef must be in the range [0, 1]')
         if not (0 <= self.halo_decay_coef < 1):
             res.append('halo_decay_coef must be in the range [0, 1)')
+        if self.blending not in ['alpha', 'screen']:
+            res.append('blending must be one of {"alpha", "screen"}')
         
         return res
