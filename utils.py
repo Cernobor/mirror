@@ -35,7 +35,8 @@ def conv_comb(a, b, fac_a):
     return fac_a * a + (1 - fac_a) * b
 
 
-def scale(value: Union[int, Tuple[int, ...]], numerator: int, denominator: int) -> int:
+T = TypeVar('T', int, Tuple[int, ...])
+def scale(value: T, numerator: int, denominator: int) -> T:
     if isinstance(value, tuple):
         return tuple((v * numerator) // denominator for v in value)
     else:
@@ -67,6 +68,11 @@ class Config:
     final_trigger_pin: Optional[int] = None
     global_res_scale: Tuple[int, int] = (1, 1)
     video_res_scale: Tuple[int, int] = (1, 1)
+
+    margin_bottom: float = 0.21875
+    margin_top: float = 0.0
+    margin_left: float = 0.0
+    constellations_x_size: float = 0.38889
 
     def validate(self) -> List[str]:
         res = []

@@ -79,7 +79,7 @@ class Renderer:
         self.constellation = None
         self.halo = None
         self.halo_blow_factor = 1
-        self.config.debug_divisor = 2
+        self.debug_divisor = 1
         self.special = False
         self.final_trigger_prev = False
         self.final_trigger = False
@@ -88,50 +88,41 @@ class Renderer:
         self.halo_center = None
         
         # setup display sizes and orientations
-        self.horizontal_idx = 1
-        self.vertical_idx = 0
+        canvas_size = utils.scale(self.display_size, *(self.config.global_res_scale))
+        fs = pygame.FULLSCREEN
         if self.config.debug or self.config.screen_rotated:
             self.horizontal_idx = 0
             self.vertical_idx = 1
-
-        full_ds = self.display_size
-        canvas_size = utils.scale(full_ds, *(self.config.global_res_scale))
-        cs = canvas_size
-        self.vertical_diff = canvas_size[0] - self.image_size[0]
-        self.horizontal_diff = canvas_size[1] - self.image_size[1]
-        fs = pygame.FULLSCREEN
-        if self.config.debug:
-            cs = (canvas_size[1] // self.config.debug_divisor, canvas_size[0] // self.config.debug_divisor)
-            full_ds = (full_ds[1] // self.config.debug_divisor, full_ds[0] // self.config.debug_divisor)
-            self.display_size = full_ds
-            self.image_size = (self.image_size[1] // self.config.debug_divisor, self.image_size[1] // self.config.debug_divisor)
-            fs = 0
-
-            size = (canvas_size[1] // self.config.debug_divisor, self.vertical_diff // self.config.debug_divisor)
-            v = min(size) // 2
-            h = max(size)
-            indicator_size = (v, v)
-            self.indicator_offset_l = (0, 0)
-            self.indicator_offset_r = (h - v, 0)
-        elif not self.config.screen_rotated:
-            size = (self.vertical_diff, canvas_size[1])
-            v = min(size) // 2
-            h = max(size)
-            indicator_size = (v, v)
-            self.indicator_offset_l = (0, 0)
-            self.indicator_offset_r = (0, h - v)
+            self.display_size = (self.display_size[1], self.display_size[0])
+            canvas_size = (canvas_size[1], canvas_size[0])
         else:
-            cs = (canvas_size[1], canvas_size[0])
-            size = (canvas_size[1], self.vertical_diff)
-            v = min(size) // 2
-            h = max(size)
-            indicator_size = (v, v)
-            self.indicator_offset_l = (0, 0)
-            self.indicator_offset_r = (h - v, 0)
+            self.horizontal_idx = 1
+            self.vertical_idx = 0
+        if self.config.debug:
+            self.debug_divisor = 2
+            fs = 0
+        
+        canvas_size = utils.scale(canvas_size, 1, self.debug_divisor)
+        self.display_size = utils.scale(self.display_size, 1, self.debug_divisor)
+        self.image_size = utils.scale(self.image_size, 1, self.debug_divisor)
+
+        self.video_top_left = [0, 0]
+        self.video_top_left[self.horizontal_idx] = 0
+        self.video_top_left[self.vertical_idx] = canvas_size[self.vertical_idx]
+        self.video_top_left[self.vertical_idx] -= round(canvas_size[self.vertical_idx] * self.config.margin_bottom)
+        self.video_top_left[self.vertical_idx] -= self.image_size[self.vertical_idx]
+        
+        self.indicator_l_top_left = [0, 0]
+        self.indicator_r_top_left = [0, 0]
+        indicator_size = round(canvas_size[self.horizontal_idx] * self.config.constellations_x_size)
+        self.indicator_l_top_left[self.horizontal_idx] = round(canvas_size[self.horizontal_idx] * self.config.margin_left)
+        self.indicator_r_top_left[self.horizontal_idx] = canvas_size[self.horizontal_idx] - self.indicator_l_top_left[self.horizontal_idx] - indicator_size
+        self.indicator_l_top_left[self.vertical_idx] = self.indicator_r_top_left[self.vertical_idx] = round(canvas_size[self.vertical_idx] * self.config.margin_top)
+        
         self.pg_halo = None
         self.pg_display = pygame.display.set_mode(size=self.display_size, flags=fs)
-        self.pg_canvas = pygame.Surface(size=cs, flags=fs)
-        self.pg_indicator = pygame.Surface(indicator_size)
+        self.pg_canvas = pygame.Surface(size=canvas_size, flags=fs)
+        self.pg_indicator = pygame.Surface((indicator_size, indicator_size))
         self.rng = np.random.default_rng()
 
         # setup star types
@@ -269,21 +260,11 @@ class Renderer:
             del alpha
             pg_face.blit(pg_face_fg, (0, 0))
 
-        if self.config.debug:
-            if pg_face.get_size() == self.image_size:
-                self.pg_canvas.blit(pg_face, (0, self.vertical_diff // 2 // self.config.debug_divisor))
-            else:
-                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (0, self.vertical_diff // 2 // self.config.debug_divisor))
-        elif not self.config.screen_rotated:
-            if pg_face.get_size() == self.image_size:
-                self.pg_canvas.blit(pg_face, (self.vertical_diff // 2, 0))
-            else:
-                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (self.vertical_diff // 2, 0))
+        
+        if pg_face.get_size() == self.image_size:
+            self.pg_canvas.blit(pg_face, self.video_top_left)
         else:
-            if pg_face.get_size() == self.image_size:
-                self.pg_canvas.blit(pg_face, (0, self.vertical_diff // 2))
-            else:
-                self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), (0, self.vertical_diff // 2))
+            self.pg_canvas.blit(pygame.transform.scale(pg_face, self.image_size), self.video_top_left)
     
     def render_indicator(self, seq: int):
         self.pg_indicator.fill((0, 0, 0))
@@ -320,8 +301,8 @@ class Renderer:
             self.constellation.set_alpha(255 * coef)
             self.pg_indicator.blit(self.constellation, (0, 0))
 
-        self.pg_canvas.blit(self.pg_indicator, self.indicator_offset_l)
-        self.pg_canvas.blit(self.pg_indicator, self.indicator_offset_r)
+        self.pg_canvas.blit(self.pg_indicator, self.indicator_l_top_left)
+        self.pg_canvas.blit(self.pg_indicator, self.indicator_r_top_left)
     
     def render(self, color: cv2.Mat, depth: cv2.Mat, face_bbox: Optional[BBox], seq: int) -> bool:
         """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
@@ -421,6 +402,8 @@ class Renderer:
         factor = surf_size[0] / img_size[0], surf_size[1] / img_size[1]
         print(f'Indicator surf size: {surf_size}  Constellation img size: {img_size}  Scaling factor: {factor}')
         self.constellation = pygame.transform.smoothscale_by(img, factor)
+        if not self.config.debug and not self.config.screen_rotated:
+            self.constellation = pygame.transform.rotate(self.constellation, 90)
 
         self.halo = halo
     
