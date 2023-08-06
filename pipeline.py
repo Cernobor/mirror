@@ -1,3 +1,4 @@
+import os
 from typing import Tuple
 import depthai as dai
 import blobconverter
@@ -199,6 +200,9 @@ def create_pipeline(unscaled_video_size: Tuple[int, int], config: Config) -> dai
 
 
 def load_script(path: str) -> str:
+    local_dir = os.path.dirname(__file__)
+    if not os.path.isabs(path):
+        path = os.path.join(local_dir, path)
     data = ''
     with open(path, 'r') as f:
         while True:
