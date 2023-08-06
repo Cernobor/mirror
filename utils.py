@@ -3,7 +3,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, TypeVar
 
 BASELINE = 75
 FOV = 73
