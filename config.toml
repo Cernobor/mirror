@@ -2,17 +2,17 @@ screen_rotated = true
 camera_flipped = true
 depth = 2000
 
-halo_common = "~/mirror-assets/halo-common"
+halo_common_path = "~/mirror-assets/halo-common"
 halo_common_blow_factor = 3.5
 
-halo_special = "~/mirror-assets/halo-special"
+halo_special_path = "~/mirror-assets/halo-special"
 halo_special_blow_factor = 3.5
 
 halo_position_mixing_coef = 0.5
 halo_decay_coef = 0.96
 background_stars_no = 100
-common_constellations = "~/mirror-assets/constellations-common"
-special_constellations = "~/mirror-assets/constellations-special"
+constellations_common_path = "~/mirror-assets/constellations-common"
+constellations_special_path = "~/mirror-assets/constellations-special"
 halo_fade_in_time = 1
 constellation_fade_in_time = 1
 halo_delay_time = 0
