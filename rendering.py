@@ -158,27 +158,27 @@ class Renderer:
             self.background_stars.append(star)
         
         self.common_constellations_imgs = []
-        if self.config.common_constellations:
-            files = os.listdir(self.config.common_constellations)
+        if self.config.constellations_common_path:
+            files = os.listdir(self.config.constellations_common_path)
             files.sort()
-            self.common_constellations_imgs = [os.path.join(self.config.common_constellations, f) for f in files]
+            self.common_constellations_imgs = [os.path.join(self.config.constellations_common_path, f) for f in files]
         self.special_constellations_imgs = []
-        if self.config.special_constellations:
-            files = os.listdir(self.config.special_constellations)
+        if self.config.constellations_special_path:
+            files = os.listdir(self.config.constellations_special_path)
             files.sort()
-            self.special_constellations_imgs = [os.path.join(self.config.special_constellations, f) for f in files]
+            self.special_constellations_imgs = [os.path.join(self.config.constellations_special_path, f) for f in files]
         
         # setup mirror halo
         self.halo_common_imgs = []
-        if self.config.halo_common:
-            files = os.listdir(self.config.halo_common)
+        if self.config.halo_common_path:
+            files = os.listdir(self.config.halo_common_path)
             files.sort()
-            self.halo_common_imgs = [os.path.join(self.config.halo_common, f) for f in files]
+            self.halo_common_imgs = [os.path.join(self.config.halo_common_path, f) for f in files]
         self.halo_special_imgs = []
-        if self.config.halo_special:
-            files = os.listdir(self.config.halo_special)
+        if self.config.halo_special_path:
+            files = os.listdir(self.config.halo_special_path)
             files.sort()
-            self.halo_special_imgs = [os.path.join(self.config.halo_special, f) for f in files]
+            self.halo_special_imgs = [os.path.join(self.config.halo_special_path, f) for f in files]
 
         # save start time
         self.time = time.time()

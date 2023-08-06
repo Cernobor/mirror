@@ -39,7 +39,7 @@ def get_conf() -> utils.Config:
 
     res = utils.Config(**confDict)
 
-    errors = res.validate()
+    errors = res.validate_sanitize()
     if errors:
         print('Errors in configuration:', file=sys.stderr)
         for e in errors:

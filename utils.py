@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 import depthai as dai
 import numpy as np
 import cv2
@@ -49,15 +50,15 @@ class Config:
     screen_rotated: bool = False
     camera_flipped: bool = False
     depth: int = 0
-    halo_common: str = ''
-    halo_special: str = ''
+    halo_common_path: str = ''
+    halo_special_path: str = ''
     halo_common_blow_factor: float = ''
     halo_special_blow_factor: float = ''
     halo_position_mixing_coef: float = ''
     halo_decay_coef: float = 0
     background_stars_no: int = 0
-    common_constellations: str = ''
-    special_constellations: str = ''
+    constellations_common_path: str = ''
+    constellations_special_path: str = ''
     halo_fade_in_time: float = 1
     constellation_fade_in_time: float = 1
     halo_delay_time: float = 0
@@ -74,7 +75,7 @@ class Config:
     margin_left: float = 0.0
     constellations_x_size: float = 0.38889
 
-    def validate(self) -> List[str]:
+    def validate_sanitize(self) -> List[str]:
         res = []
         if self.special_trigger_file is None and self.special_trigger_pin is None:
             res.append('exactly one of special_trigger_file and special_trigger_pin must be specified')
@@ -84,5 +85,19 @@ class Config:
             res.append('halo_position_mixing_coef must be in the range [0, 1]')
         if not (0 <= self.halo_decay_coef < 1):
             res.append('halo_decay_coef must be in the range [0, 1)')
+        
+        self.halo_common_path = os.path.expanduser(self.halo_common_path)
+        self.halo_special_path = os.path.expanduser(self.halo_special_path)
+        self.constellations_common_path = os.path.expanduser(self.constellations_common_path)
+        self.constellations_special_path = os.path.expanduser(self.constellations_special_path)
+
+        if not os.path.exists(self.halo_common_path) or not os.path.isdir(self.halo_common_path):
+            res.append('path pointed to by halo_common_path does not exist or is not a directory')
+        if not os.path.exists(self.halo_special_path) or not os.path.isdir(self.halo_special_path):
+            res.append('path pointed to by halo_special_path does not exist or is not a directory')
+        if not os.path.exists(self.constellations_common_path) or not os.path.isdir(self.constellations_common_path):
+            res.append('path pointed to by constellations_common_path does not exist or is not a directory')
+        if not os.path.exists(self.constellations_special_path) or not os.path.isdir(self.constellations_special_path):
+            res.append('path pointed to by constellations_special_path does not exist or is not a directory')
         
         return res
