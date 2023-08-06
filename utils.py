@@ -76,9 +76,9 @@ class Config:
 
     def validate(self) -> List[str]:
         res = []
-        if self.special_trigger_file is None and self.special_trigger_pin:
+        if self.special_trigger_file is None and self.special_trigger_pin is None:
             res.append('exactly one of special_trigger_file and special_trigger_pin must be specified')
-        if self.final_trigger_file is None and self.final_trigger_pin:
+        if self.final_trigger_file is None and self.final_trigger_pin is None:
             res.append('exactly one of final_trigger_file and final_trigger_pin must be specified')
         if not (0 <= self.halo_position_mixing_coef <= 1):
             res.append('halo_position_mixing_coef must be in the range [0, 1]')
