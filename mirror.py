@@ -1,4 +1,7 @@
 import json
+import os
+import shutil
+import tempfile
 import tomllib
 import typing
 import time
@@ -18,16 +21,21 @@ DISPLAY_SIZE: typing.Tuple[int, int] = (1920, 1080)
 
 def main():
     config = get_conf()
-    print('Creating pipeline...')
-    pl = pipeline.create_pipeline((min(DISPLAY_SIZE), min(DISPLAY_SIZE)), config)
-    print('Saving pipeline to JSON...')
-    with open('pipeline.json', 'w') as f:
-        json.dump(pl.serializeToJson(), f, indent=2)
-    print('Initializing device...')
-    with dai.Device(pl) as dev:
-        device = typing.cast(dai.Device, dev)
-        print('Device initialized.')
-        run(device, config)
+    cleanup = preprocess(config)
+    try:
+        print('Creating pipeline...')
+        pl = pipeline.create_pipeline((min(DISPLAY_SIZE), min(DISPLAY_SIZE)), config)
+        print('Saving pipeline to JSON...')
+        with open('pipeline.json', 'w') as f:
+            json.dump(pl.serializeToJson(), f, indent=2)
+        print('Initializing device...')
+        with dai.Device(pl) as dev:
+            device = typing.cast(dai.Device, dev)
+            print('Device initialized.')
+            run(device, config)
+    finally:
+        cleanup()
+        pass
 
 
 def get_conf() -> utils.Config:
@@ -147,6 +155,72 @@ def run(device: dai.Device, config: utils.Config):
     
     if trigger_mode == 'gpio':
         lines_special_final.release()
+
+
+def preprocess(conf: utils.Config) -> typing.Callable:
+    cleanups: typing.List[typing.Tuple[str, typing.Callable]] = []
+
+    print('Preprocessing...')
+    if conf.blend_mode == 'alpha':
+        if conf.alpha_convert_black_common:
+            print('  ...converting common halo from black to alpha')
+            common_alpha = tempfile.mkdtemp(prefix='preprocessed-alpha-common-', dir=conf.halo_common_path)
+            convert_alpha_black(conf.halo_common_path, common_alpha)
+            conf.halo_common_path = common_alpha
+            cleanups.append(('deleting alpha-preprocessed common halo', lambda: shutil.rmtree(common_alpha)))
+        if conf.alpha_convert_black_special:
+            print('  ...converting special halo from black to alpha')
+            special_alpha = tempfile.mkdtemp(prefix='preprocessed-alpha-common-', dir=conf.halo_special_path)
+            convert_alpha_black(conf.halo_special_path, special_alpha)
+            conf.halo_special_path = special_alpha
+            cleanups.append(('deleting alpha-preprocessed special halo', lambda: shutil.rmtree(special_alpha)))
+    elif conf.blend_mode == 'screen':
+        print('  ...inverting halos')
+        common_inv = tempfile.mkdtemp(prefix='preprocessed-inverted-common-', dir=conf.halo_common_path)
+        invert(conf.halo_common_path, common_inv)
+        conf.halo_common_path = common_inv
+        cleanups.append(('deleting inversion-preprocessed common halo', lambda: shutil.rmtree(common_inv)))
+        
+        special_inv = tempfile.mkdtemp(prefix='preprocessed-inverted-special-', dir=conf.halo_special_path)
+        invert(conf.halo_special_path, special_inv)
+        conf.halo_special_path = special_inv
+        cleanups.append(('deleting inversion-preprocessed special halo', lambda: shutil.rmtree(special_inv)))
+    
+    def cleanup():
+        print('Cleaning up...')
+        for info, task in cleanups:
+            print(f'  ...{info}')
+            task()
+        print('Cleaned up.')
+    
+    print('Done preprocessing.')
+    return cleanup
+    
+
+def convert_alpha_black(src: str, tgt: str):
+    with os.scandir(src) as sd:
+        for entry in sd:
+            if entry.is_dir():
+                continue
+            if not entry.name.lower().endswith('.png'):
+                continue
+            img = cv2.imread(entry.path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+            img[:, :, 3] = img[:, :, :-1].max(axis=2)
+            cv2.imwrite(os.path.join(tgt, entry.name), img)
+
+
+def invert(src: str, tgt: str):
+    with os.scandir(src) as sd:
+        for entry in sd:
+            if entry.is_dir():
+                continue
+            if not entry.name.lower().endswith('.png'):
+                continue
+            img = cv2.imread(entry.path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            img = cv2.bitwise_not(img)
+            cv2.imwrite(os.path.join(tgt, entry.name), img)
 
 
 if __name__ == '__main__':

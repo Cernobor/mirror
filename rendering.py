@@ -71,6 +71,7 @@ class Renderer:
         self.config = config
         self.image_size = utils.scale((min(display_size), min(display_size)), *config.global_res_scale)
         
+        os.environ['SDL_VIDEO_WINDOW_POS'] = '0,0'
         pygame.init()
         self.is_face_prev = False
         self.is_face = False
@@ -179,6 +180,13 @@ class Renderer:
             files = os.listdir(self.config.halo_special_path)
             files.sort()
             self.halo_special_imgs = [os.path.join(self.config.halo_special_path, f) for f in files]
+        
+        # calculate decay coefficient
+        if self.config.halo_decay_time > 0:
+            self.decay_coef = 0.9 ** (1 / self.config.halo_decay_time)
+        else:
+            self.decay_coef = 0
+        print('decay coef', self.decay_coef)
 
         # save start time
         self.time = time.time()
@@ -201,23 +209,44 @@ class Renderer:
             else:
                 bg_mask = np.flip(bg_mask, 1)
 
+        if self.config.blend_mode == 'alpha':
+            pg_face = pygame.surfarray.make_surface(color)
+        elif self.config.blend_mode == 'screen':
+            pg_face = pygame.surfarray.make_surface(cv2.bitwise_not(color))
 
-        pg_face = pygame.surfarray.make_surface(color)
-        
         if self.final:
             coef = self.effect_coef(self.config.halo_delay_time, self.config.halo_fade_in_time)
         else:
             coef = 0
         if coef > 0 and self.halo:
-            if self.config.halo_decay_coef > 0:
-                if self.pg_halo is None:
+            if self.pg_halo is None:
+                if self.config.blend_mode == 'alpha':
                     self.pg_halo = pygame.surface.Surface(size=pg_face.get_size(),
-                                                        flags=pygame.SRCALPHA)
-                else:
+                                                          flags=pygame.SRCALPHA)
+                elif self.config.blend_mode == 'screen':
+                    self.pg_halo = pygame.surface.Surface(size=pg_face.get_size())
+                    self.pg_halo.fill((255, 255, 255))
+                    #self.pg_halo.fill((0, 0, 0))
+            elif self.decay_coef > 0:
+                if self.config.blend_mode == 'alpha':
                     arr = pygame.surfarray.pixels_alpha(self.pg_halo)
-                    arr[:] = (arr * self.config.halo_decay_coef).astype(np.uint8)[:]
+                    arr[:] = (arr * self.decay_coef).astype(np.uint8, copy=False)[:]
                     del arr
-            img = pygame.image.load(self.halo[seq % len(self.halo)]).convert_alpha()
+                elif self.config.blend_mode == 'screen':
+                    #c = 1 - self.config.halo_decay_coef
+                    #arr = pygame.surfarray.pixels3d(self.pg_halo)
+                    #arr[:] = (arr.astype(np.float16, copy=False) * c + 255 * (1 - c)).astype(np.uint8, copy=False)[:]
+                    #del arr
+                    pass
+            else:
+                if self.config.blend_mode == 'alpha':
+                    self.pg_halo.fill((0, 0, 0, 0))
+                elif self.config.blend_mode == 'screen':
+                    pass
+            if self.config.blend_mode == 'alpha':
+                img = pygame.image.load(self.halo[seq % len(self.halo)]).convert_alpha()
+            elif self.config.blend_mode == 'screen':
+                img = pygame.image.load(self.halo[seq % len(self.halo)]).convert()
             size = img.get_size()
             img_h = size[1]
             bbox_h = self.bbox.size()[self.vertical_idx]
@@ -241,16 +270,29 @@ class Renderer:
             top_left = (self.halo_center[self.horizontal_idx] - scaled.get_width() // 2,
                         self.halo_center[self.vertical_idx] - scaled.get_height() // 2)
             if int(255 * coef) < 255:
-                scaled.set_alpha(255 * coef)
-            if self.pg_halo is None:
-                pg_face.blit(scaled, top_left)
-            else:
+                if self.config.blend_mode == 'alpha':
+                    scaled.set_alpha(255 * coef)
+                elif self.config.blend_mode == 'screen':
+                    scaled_arr = pygame.surfarray.pixels3d(scaled)
+                    scaled_arr[:] = (scaled_arr.astype(np.float16, copy=False) * coef + 255 * (1 - coef)).astype(np.uint8, copy=False)[:]
+                    del scaled_arr
+            
+            if self.config.blend_mode == 'alpha':
                 self.pg_halo.blit(scaled, top_left)
                 pg_face.blit(self.pg_halo, (0, 0))
+            elif self.config.blend_mode == 'screen':
+                self.pg_halo.blit(scaled, top_left)
+                pg_face.blit(self.pg_halo, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
         else:
             self.halo_factor = None
             self.halo_center = None
             self.pg_halo = None
+        
+        if self.config.blend_mode == 'screen':
+            white = pygame.Surface(pg_face.get_size())
+            white.fill((255, 255, 255))
+            white.blit(pg_face, (0, 0), special_flags=pygame.BLEND_RGB_SUB)
+            pg_face = white
         
         if bg_mask is not None:
             pg_face_fg = pygame.Surface(color.shape[:2], pygame.SRCALPHA, 32)
@@ -382,20 +424,17 @@ class Renderer:
         print('Choosing effect...')
         halo = []
         if self.special:
-            #choice = random.choice(self.special_constellations)
             constellation = random.choice(self.special_constellations_imgs)
             if self.halo_special_imgs:
                 halo = self.halo_special_imgs
             self.halo_blow_factor = self.config.halo_special_blow_factor
         else:
-            #choice = random.choice(self.common_constellations)
             constellation = random.choice(self.common_constellations_imgs)
             if not self.special and self.halo_common_imgs:
                 halo = self.halo_common_imgs
             self.halo_blow_factor = self.config.halo_common_blow_factor
-        print(f'Chosen constellation: {constellation}  Chosen halo: {halo}')
+        #print(f'Chosen constellation: {constellation}  Chosen halo: {halo}')
         
-        #self.constellation = choice
         img = pygame.image.load(constellation).convert_alpha()
         img_size = img.get_size()
         surf_size = self.pg_indicator.get_size()

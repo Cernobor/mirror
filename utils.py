@@ -4,7 +4,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import math
-from typing import List, Optional, Tuple, TypeVar
+from typing import List, Literal, Optional, Tuple, TypeVar
 
 BASELINE = 75
 FOV = 73
@@ -55,7 +55,7 @@ class Config:
     halo_common_blow_factor: float = ''
     halo_special_blow_factor: float = ''
     halo_position_mixing_coef: float = ''
-    halo_decay_coef: float = 0
+    halo_decay_time: float = 0
     background_stars_no: int = 0
     constellations_common_path: str = ''
     constellations_special_path: str = ''
@@ -75,6 +75,10 @@ class Config:
     margin_left: float = 0.0
     constellations_x_size: float = 0.38889
 
+    blend_mode: Literal['alpha'] | Literal['screen'] = 'alpha'
+    alpha_convert_black_common: bool = False
+    alpha_convert_black_special: bool = False
+
     def validate_sanitize(self) -> List[str]:
         res = []
         if self.special_trigger_file is None and self.special_trigger_pin is None:
@@ -83,8 +87,8 @@ class Config:
             res.append('exactly one of final_trigger_file and final_trigger_pin must be specified')
         if not (0 <= self.halo_position_mixing_coef <= 1):
             res.append('halo_position_mixing_coef must be in the range [0, 1]')
-        if not (0 <= self.halo_decay_coef < 1):
-            res.append('halo_decay_coef must be in the range [0, 1)')
+        if self.blend_mode not in ['alpha', 'screen']:
+            res.append('blend_mode must be one of [\'alpha\', \'screen\']')
         
         self.halo_common_path = os.path.expanduser(self.halo_common_path)
         self.halo_special_path = os.path.expanduser(self.halo_special_path)

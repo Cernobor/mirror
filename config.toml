@@ -3,20 +3,20 @@ camera_flipped = true
 depth = 2000
 
 halo_common_path = "~/mirror-assets/halo-common"
-halo_common_blow_factor = 3.5
+halo_common_blow_factor = 8
 
 halo_special_path = "~/mirror-assets/halo-special"
-halo_special_blow_factor = 3.5
+halo_special_blow_factor = 8
 
 halo_position_mixing_coef = 0.5
-halo_decay_coef = 0.96
+halo_decay_time = 5
 background_stars_no = 100
 constellations_common_path = "~/mirror-assets/constellations-common"
 constellations_special_path = "~/mirror-assets/constellations-special"
-halo_fade_in_time = 1
-constellation_fade_in_time = 1
-halo_delay_time = 0
-constellation_delay_time = 0
+halo_fade_in_time = 10
+constellation_fade_in_time = 3
+halo_delay_time = 1
+constellation_delay_time = 1
 special_trigger_pin = 46
 final_trigger_pin = 45
 #global_res_scale = [1, 3]
@@ -26,3 +26,7 @@ margin_bottom = 0.1
 margin_top = 0.1
 margin_left = 0.1
 constellations_x_size = 0.3
+
+blend_mode = 'alpha'
+alpha_convert_black_common = true
+alpha_convert_black_special = true
