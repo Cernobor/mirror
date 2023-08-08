@@ -145,13 +145,13 @@ while True:
         if l.depthAverage < min_z:
             min_i = i
             min_z = l.depthAverage
-    nearest_face = NNData(12)
+    nearest_face = NNData(10)
     nearest_face.setSequenceNum(color.getSequenceNum())
     if min_i is not None:
         face = faces.detections[min_i]
         #node.warn(f'{int(face.xmin), int(face.ymin), int(face.xmax), int(face.ymax)}')
         #data = struct.pack('<4i', int(face.xmin), int(face.ymin), int(face.xmax), int(face.ymax))
-        data = [face.xmin, face.ymin, face.xmax, face.ymax]
+        data = [face.xmin, face.ymin, face.xmax, face.ymax, min_z]
         #node.warn(f'{data}')
         #nearest_face.setLayer('bbox', [int(x) for x in data])
         nearest_face.setLayer('bbox', data)

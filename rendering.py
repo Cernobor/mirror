@@ -196,8 +196,8 @@ class Renderer:
             cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), 1)
         
         bg_mask = None
-        if self.config.depth > 0:
-            bg_mask = np.logical_or(depth > self.config.depth, depth < 350)
+        if self.config.depth >= 0:
+            bg_mask = depth > self.dist + self.config.depth
 
         color = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
         cv2.flip(color, 1, color)
@@ -346,7 +346,7 @@ class Renderer:
         self.pg_canvas.blit(self.pg_indicator, self.indicator_l_top_left)
         self.pg_canvas.blit(self.pg_indicator, self.indicator_r_top_left)
     
-    def render(self, color: cv2.Mat, depth: cv2.Mat, face_bbox: Optional[BBox], seq: int) -> bool:
+    def render(self, color: cv2.Mat, depth: cv2.Mat, face: Optional[Tuple[BBox, float]], seq: int) -> bool:
         """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
         Renders the final image.
         
@@ -355,19 +355,21 @@ class Renderer:
             #print(color.shape, depth.shape)
             depth = cv2.resize(depth, color.shape[:2])
         if self.config.debug:
-            if face_bbox is not None:
-                face_bbox = BBox(face_bbox.x0 * self.image_size[1] // color.shape[0],
-                                 face_bbox.y0 * self.image_size[0] // color.shape[1],
-                                 face_bbox.x1 * self.image_size[1] // color.shape[0],
-                                 face_bbox.y1 * self.image_size[0] // color.shape[1])
+            if face is not None:
+                face_bbox = BBox(face[0].x0 * self.image_size[1] // color.shape[0],
+                                 face[0].y0 * self.image_size[0] // color.shape[1],
+                                 face[0].x1 * self.image_size[1] // color.shape[0],
+                                 face[0].y1 * self.image_size[0] // color.shape[1])
+                face = (face_bbox, face[1])
             color = cv2.resize(color, (self.image_size[1], self.image_size[0]))
             depth = cv2.resize(depth, (self.image_size[1], self.image_size[0]))
         
-        if face_bbox is not None:
+        if face is not None:
             self.is_face = True
-            tl = face_bbox.top_left()
-            br = face_bbox.bottom_right()
+            tl = face[0].top_left()
+            br = face[0].bottom_right()
             self.bbox = BBox(tl[0], tl[1], br[0], br[1])
+            self.dist = face[1]
         else:
             self.is_face = False
         

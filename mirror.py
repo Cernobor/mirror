@@ -125,17 +125,19 @@ def run(device: dai.Device, config: utils.Config):
         color = typing.cast(cv2.Mat, color_in.getCvFrame())
         depth = depth_in.getFrame()
         
-        bbox_raw = nearest_face_in.getLayerFp16('bbox')
-        bbox = None
-        if bbox_raw is not None and len(bbox_raw) == 4:
-            rect = dai.Rect(dai.Point2f(bbox_raw[0], bbox_raw[1]),
-                            dai.Point2f(bbox_raw[2], bbox_raw[3]))
+        det_raw = nearest_face_in.getLayerFp16('bbox')
+        face = None
+        if det_raw is not None and len(det_raw) == 5:
+            rect = dai.Rect(dai.Point2f(det_raw[0], det_raw[1]),
+                            dai.Point2f(det_raw[2], det_raw[3]))
             rect = rect.denormalize(color_in.getWidth(), color_in.getHeight())
             bbox = BBox(int(rect.topLeft().x),
                         int(rect.topLeft().y),
                         int(rect.bottomRight().x),
                         int(rect.bottomRight().y))
-        if renderer.render(color, depth, bbox, seq):
+            dist = det_raw[4]
+            face = (bbox, dist)
+        if renderer.render(color, depth, face, seq):
             print('Requested stoppage.')
             break
 
@@ -162,31 +164,40 @@ def preprocess(conf: utils.Config) -> typing.Callable:
 
     print('Preprocessing...')
     if conf.blend_mode == 'alpha':
+        dn = 'preprocessed-alpha-black'
         if conf.alpha_convert_black_common:
             print('  ...converting common halo from black to alpha')
-            common_alpha = tempfile.mkdtemp(prefix='preprocessed-alpha-common-', dir=conf.halo_common_path)
-            convert_alpha_black(conf.halo_common_path, common_alpha)
-            conf.halo_common_path = common_alpha
-            cleanups.append(('deleting alpha-preprocessed common halo', lambda: shutil.rmtree(common_alpha)))
+            p = os.path.join(conf.halo_common_path, dn)
+            if not os.path.exists(p):
+                os.mkdir(p)
+                convert_alpha_black(conf.halo_common_path, p)
+                conf.halo_common_path = p
         if conf.alpha_convert_black_special:
             print('  ...converting special halo from black to alpha')
-            special_alpha = tempfile.mkdtemp(prefix='preprocessed-alpha-common-', dir=conf.halo_special_path)
-            convert_alpha_black(conf.halo_special_path, special_alpha)
-            conf.halo_special_path = special_alpha
-            cleanups.append(('deleting alpha-preprocessed special halo', lambda: shutil.rmtree(special_alpha)))
+            p = os.path.join(conf.halo_special_path, dn)
+            if not os.path.exists(p):
+                os.mkdir(p)
+                convert_alpha_black(conf.halo_special_path, p)
+                conf.halo_special_path = p
     elif conf.blend_mode == 'screen':
         print('  ...inverting halos')
-        common_inv = tempfile.mkdtemp(prefix='preprocessed-inverted-common-', dir=conf.halo_common_path)
-        invert(conf.halo_common_path, common_inv)
-        conf.halo_common_path = common_inv
-        cleanups.append(('deleting inversion-preprocessed common halo', lambda: shutil.rmtree(common_inv)))
+        dn = 'preprocessed-inverted'
         
-        special_inv = tempfile.mkdtemp(prefix='preprocessed-inverted-special-', dir=conf.halo_special_path)
-        invert(conf.halo_special_path, special_inv)
-        conf.halo_special_path = special_inv
-        cleanups.append(('deleting inversion-preprocessed special halo', lambda: shutil.rmtree(special_inv)))
+        p = os.path.join(conf.halo_common_path, dn)
+        if not os.path.exists(p):
+            os.mkdir(p)
+            invert(conf.halo_common_path, p)
+            conf.halo_common_path = p
+        
+        p = os.path.join(conf.halo_special_path, dn)
+        if not os.path.exists(p):
+            os.mkdir(p)
+            invert(conf.halo_special_path, p)
+            conf.halo_special_path = p
     
     def cleanup():
+        if len(cleanups) == 0:
+            return
         print('Cleaning up...')
         for info, task in cleanups:
             print(f'  ...{info}')

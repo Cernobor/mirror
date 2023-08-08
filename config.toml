@@ -1,12 +1,12 @@
 screen_rotated = true
 camera_flipped = true
-depth = 2000
+depth = 200
 
 halo_common_path = "~/mirror-assets/halo-common"
-halo_common_blow_factor = 8
+halo_common_blow_factor = 6
 
 halo_special_path = "~/mirror-assets/halo-special"
-halo_special_blow_factor = 8
+halo_special_blow_factor = 6
 
 halo_position_mixing_coef = 0.5
 halo_decay_time = 5
