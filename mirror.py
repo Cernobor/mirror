@@ -166,34 +166,47 @@ def preprocess(conf: utils.Config) -> typing.Callable:
     if conf.blend_mode == 'alpha':
         dn = 'preprocessed-alpha-black'
         if conf.alpha_convert_black_common:
-            print('  ...converting common halo from black to alpha')
+            print('  ...converting common halo from black to alpha', end='')
             p = os.path.join(conf.halo_common_path, dn)
             if not os.path.exists(p):
                 os.mkdir(p)
                 convert_alpha_black(conf.halo_common_path, p)
                 conf.halo_common_path = p
+            else:
+                print(' - already exists, skipping', end='')
+            print()
         if conf.alpha_convert_black_special:
-            print('  ...converting special halo from black to alpha')
+            print('  ...converting special halo from black to alpha', end='')
             p = os.path.join(conf.halo_special_path, dn)
             if not os.path.exists(p):
                 os.mkdir(p)
                 convert_alpha_black(conf.halo_special_path, p)
                 conf.halo_special_path = p
+            else:
+                print(' - already exists, skipping', end='')
+            print()
     elif conf.blend_mode == 'screen':
-        print('  ...inverting halos')
         dn = 'preprocessed-inverted'
         
+        print('  ...inverting common halo', end='')
         p = os.path.join(conf.halo_common_path, dn)
         if not os.path.exists(p):
             os.mkdir(p)
             invert(conf.halo_common_path, p)
             conf.halo_common_path = p
+        else:
+            print(' - already exists, skipping', end='')
+        print()
         
+        print('  ...inverting special halo', end='')
         p = os.path.join(conf.halo_special_path, dn)
         if not os.path.exists(p):
             os.mkdir(p)
             invert(conf.halo_special_path, p)
             conf.halo_special_path = p
+        else:
+            print(' - already exists, skipping', end='')
+        print()
     
     def cleanup():
         if len(cleanups) == 0:
