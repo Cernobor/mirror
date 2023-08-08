@@ -171,9 +171,9 @@ def preprocess(conf: utils.Config) -> typing.Callable:
             if not os.path.exists(p):
                 os.mkdir(p)
                 convert_alpha_black(conf.halo_common_path, p)
-                conf.halo_common_path = p
             else:
                 print(' - already exists, skipping', end='')
+            conf.halo_common_path = p
             print()
         if conf.alpha_convert_black_special:
             print('  ...converting special halo from black to alpha', end='')
@@ -181,9 +181,9 @@ def preprocess(conf: utils.Config) -> typing.Callable:
             if not os.path.exists(p):
                 os.mkdir(p)
                 convert_alpha_black(conf.halo_special_path, p)
-                conf.halo_special_path = p
             else:
                 print(' - already exists, skipping', end='')
+            conf.halo_special_path = p
             print()
     elif conf.blend_mode == 'screen':
         dn = 'preprocessed-inverted'
@@ -193,9 +193,9 @@ def preprocess(conf: utils.Config) -> typing.Callable:
         if not os.path.exists(p):
             os.mkdir(p)
             invert(conf.halo_common_path, p)
-            conf.halo_common_path = p
         else:
             print(' - already exists, skipping', end='')
+        conf.halo_common_path = p
         print()
         
         print('  ...inverting special halo', end='')
@@ -203,9 +203,9 @@ def preprocess(conf: utils.Config) -> typing.Callable:
         if not os.path.exists(p):
             os.mkdir(p)
             invert(conf.halo_special_path, p)
-            conf.halo_special_path = p
         else:
             print(' - already exists, skipping', end='')
+        conf.halo_special_path = p
         print()
     
     def cleanup():
