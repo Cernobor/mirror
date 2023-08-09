@@ -75,6 +75,7 @@ class Renderer:
         pygame.init()
         self.is_face_prev = False
         self.is_face = False
+        self.last_face_state_time = float('-inf')
         self.bbox = BBox(0, 0, 0, 0)
         self.final_trigger_time = None
         self.constellation = None
@@ -351,7 +352,7 @@ class Renderer:
         self.pg_canvas.blit(self.pg_indicator, self.indicator_r_top_left)
     
     def render(self, color: cv2.Mat, depth: cv2.Mat, face: Optional[Tuple[BBox, float]], seq: int) -> bool:
-        """Receives an image containing the face, the bounding box of the face, and sequential number of the frame.
+        """Receives an image containing the face, the bounding box of the face, distance of the face, and sequential number of the frame.
         Renders the final image.
         
         Returns True when user wants to terminate."""
@@ -368,14 +369,24 @@ class Renderer:
             color = cv2.resize(color, (self.image_size[1], self.image_size[0]))
             depth = cv2.resize(depth, (self.image_size[1], self.image_size[0]))
         
+        is_face = False
+        time_since_last = time.time() - self.last_face_state_time
         if face is not None:
-            self.is_face = True
-            tl = face[0].top_left()
-            br = face[0].bottom_right()
-            self.bbox = BBox(tl[0], tl[1], br[0], br[1])
-            self.dist = face[1]
+            if self.is_face or time_since_last >= self.config.face_detection_momentum:
+                is_face = True
+                tl = face[0].top_left()
+                br = face[0].bottom_right()
+                self.bbox = BBox(tl[0], tl[1], br[0], br[1])
+                self.dist = face[1]
+                self.last_face_state_time = time.time()
         else:
-            self.is_face = False
+            if self.is_face and time_since_last < self.config.face_detection_momentum:
+                is_face = True
+                pass
+            else:
+                self.last_face_state_time = time.time()
+                pass
+        self.is_face = is_face
         
         
         face_change = 0

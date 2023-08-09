@@ -51,35 +51,44 @@ class Config:
 
     screen_rotated: bool = False
     camera_flipped: bool = False
-    depth: int = 0
-    halo_common_path: str = ''
-    halo_special_path: str = ''
-    halo_common_blow_factor: float = ''
-    halo_special_blow_factor: float = ''
-    halo_position_mixing_coef: float = ''
-    halo_decay_time: float = 0
-    background_stars_no: int = 0
-    constellations_common_path: str = ''
-    constellations_special_path: str = ''
-    halo_fade_in_time: float = 1
-    constellation_fade_in_time: float = 1
-    halo_delay_time: float = 0
-    constellation_delay_time: float = 0
+    global_res_scale: Tuple[int, int] = (1, 1)
+    video_res_scale: Tuple[int, int] = (1, 1)
+    
     special_trigger_file: Optional[str] = None
     final_trigger_file: Optional[str] = None
     special_trigger_pin: Optional[int] = None
     final_trigger_pin: Optional[int] = None
-    global_res_scale: Tuple[int, int] = (1, 1)
-    video_res_scale: Tuple[int, int] = (1, 1)
-
+    
     margin_bottom: float = 0.21875
     margin_top: float = 0.0
     margin_left: float = 0.0
     constellations_x_size: float = 0.38889
 
+    face_detection_momentum: float = 0.25
+
+    depth: int = 0
+
+    halo_common_path: str = ''
+    halo_common_blow_factor: float = ''
+    
+    halo_special_path: str = ''
+    halo_special_blow_factor: float = ''
+    
+    halo_position_mixing_coef: float = ''
+    halo_decay_time: float = 0
+    halo_fade_in_time: float = 1
+    halo_delay_time: float = 0
+    
     blend_mode: Literal['alpha'] | Literal['screen'] = 'alpha'
     alpha_convert_black_common: bool = False
     alpha_convert_black_special: bool = False
+
+    background_stars_no: int = 0
+    constellations_common_path: str = ''
+    constellations_special_path: str = ''
+    constellation_fade_in_time: float = 1
+    constellation_delay_time: float = 0
+
 
     def validate_sanitize(self) -> List[str]:
         res = []
