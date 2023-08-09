@@ -47,6 +47,8 @@ def scale(value: T, numerator: int, denominator: int) -> T:
 @dataclass
 class Config:
     debug: bool = False
+    bg_fill_white: bool = False
+
     screen_rotated: bool = False
     camera_flipped: bool = False
     depth: int = 0

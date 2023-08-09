@@ -68,7 +68,7 @@ def run(device: dai.Device, config: utils.Config):
         raise ValueError('Illegal state.')
     print(f'Trigger mode: {trigger_mode}')
     if trigger_mode == 'gpio':
-        import gpiod
+        import gpiod # type: ignore
         chip = gpiod.chip(3)
         line_mapping = {
             46: 19,

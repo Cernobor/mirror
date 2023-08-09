@@ -124,6 +124,10 @@ class Renderer:
         self.pg_display = pygame.display.set_mode(size=self.display_size, flags=fs)
         self.pg_canvas = pygame.Surface(size=canvas_size, flags=fs)
         self.pg_indicator = pygame.Surface((indicator_size, indicator_size))
+        
+        if not self.config.debug:
+            pygame.mouse.set_visible(False)
+        
         self.rng = np.random.default_rng()
 
         # setup star types
@@ -196,7 +200,7 @@ class Renderer:
             cv2.rectangle(color, self.bbox.top_left(), self.bbox.bottom_right(), (255, 255, 255), 1)
         
         bg_mask = None
-        if self.config.depth >= 0:
+        if self.is_face and self.config.depth >= 0:
             bg_mask = depth > self.dist + self.config.depth
 
         color = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
@@ -407,6 +411,8 @@ class Renderer:
         self.final_trigger_prev = self.final_trigger
         self.is_face_prev = self.is_face
         
+        if self.config.bg_fill_white:
+            self.pg_canvas.fill((255, 255, 255))
         self.render_face(color, depth, seq)
         self.render_indicator(seq)
         if self.config.global_res_scale[0] == self.config.global_res_scale[1]:
